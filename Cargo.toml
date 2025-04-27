@@ -1,0 +1,6 @@
+[workspace]
+members = ["render-lib", "render-app"]
+resolver = "2"  # 使用新版依赖解析器
+
+# 可选的统一依赖版本（推荐）
+[workspace.dependencies]
