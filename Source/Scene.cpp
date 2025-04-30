@@ -1,5 +1,7 @@
 #include "Eigen/Core"
+#include "Model.hpp"
 #include <cmath>
+#include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "global.hpp"
@@ -17,16 +19,16 @@ void Scene::start_render() {
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
                              projection =
-                                 get_projection_matrix(90, 1.0f, -0.1, -100);
+                                 get_projection_matrix(45, 1.0f, -0.1, -100);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   Eigen::Matrix<float, 3, 3> normal_mvp =
       view.block<3, 3>(0, 0).inverse().transpose() *
       model.block<3, 3>(0, 0).inverse().transpose();
   for (auto obj : objects) {
-    obj->rasterization(mvp, normal_mvp, *this);
+    obj->rasterization(mvp, normal_mvp, *this, *obj);
   }
 }
-void Scene::add_model(Object *model) { objects.push_back(model); }
+void Scene::add_model(Model *model) { objects.push_back(model); }
 void Scene::save_to_file(std::string filename) {
   std::vector<unsigned char> data(width * height * 3);
   for (int y = 0; y != height; ++y) {

@@ -1,9 +1,10 @@
 #include "Eigen/Core"
+#include "Model.hpp"
 #include "global.hpp"
 #include <Triangle.hpp>
 #include <iostream>
 
-void Triangle::draw(Scene &scene) {
+void Triangle::draw(Scene &scene, const Model &model) {
   vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
   vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
   vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
@@ -52,10 +53,11 @@ void Triangle::draw(Scene &scene) {
           vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
           vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
       if (Triangle::inside_triangle(alpha, beta, gamma)) {
-        alpha = alpha / vertexs[0].transform_pos.w();
-        beta = beta / vertexs[1].transform_pos.w();
-        gamma = gamma / vertexs[2].transform_pos.w();
+        alpha = alpha / -vertexs[0].transform_pos.w();
+        beta = beta / -vertexs[1].transform_pos.w();
+        gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
+        // float w_inter=1.0f;
         float point_transform_pos_z =
             w_inter * (alpha * vertexs[0].transform_pos.z() +
                        beta * vertexs[1].transform_pos.z() +
@@ -66,15 +68,19 @@ void Triangle::draw(Scene &scene) {
               w_inter * (alpha * vertexs[0].pos + beta * vertexs[1].pos +
                          gamma * vertexs[2].pos);
           Eigen::Vector3f point_normal =
-              (alpha * vertexs[0].normal + beta * vertexs[1].normal +
-               gamma * vertexs[2].normal)
+              (w_inter * (alpha * vertexs[0].normal + beta * vertexs[1].normal +
+                          gamma * vertexs[2].normal))
                   .normalized();
-          Eigen::Vector2f point_uv = (alpha * vertexs[0].texture_coords +
-                                      beta * vertexs[1].texture_coords +
-                                      gamma * vertexs[2].texture_coords);
-          Vertex point{point_pos, point_normal, {0.5f, 0.5f, 0.5f}, point_uv};
+          Eigen::Vector2f point_uv =
+              w_inter * (alpha * vertexs[0].texture_coords +
+                         beta * vertexs[1].texture_coords +
+                         gamma * vertexs[2].texture_coords);
+          Vertex point{point_pos,
+                       point_normal,
+                       {148 / 255.f, 121.0 / 255.f, 92.0 / 255.f},
+                       point_uv};
           scene.frame_buffer[scene.get_index(x, y)] =
-              scene.shader(point, scene);
+              scene.shader(point, scene, model);
         }
       }
     }
@@ -84,7 +90,7 @@ Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 void Triangle::rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
                              const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                             Scene &scene) {
+                             Scene &scene, const Model &model) {
   vertexs[0].transform_pos = mvp * vertexs[0].pos.homogeneous();
   vertexs[1].transform_pos = mvp * vertexs[1].pos.homogeneous();
   vertexs[2].transform_pos = mvp * vertexs[2].pos.homogeneous();
@@ -100,10 +106,18 @@ void Triangle::rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
   crop_triangles_yBottom(triangles);
   crop_triangles_yTop(triangles);
   for (auto &&triangle : triangles) {
-    triangle.draw(scene);
+    triangle.draw(scene, model);
   }
 }
-
+void set_pos(const Eigen::Vector3f &pos) {}
+void Triangle::move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
+  for (auto &&v : vertexs) {
+    Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
+    Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
+    v.pos = new_pos.head<3>();
+    v.normal = new_normal;
+  }
+}
 bool Triangle::inside_triangle(float alpha, float beta, float gamma) {
   return !(alpha < -EPSILON || beta < -EPSILON || gamma < -EPSILON);
 }
@@ -155,20 +169,19 @@ void crop_triangles_zNear(std::vector<Triangle> &triangles, float zNear) {
         vertex_idxs[1] = 1;
         vertex_idxs[2] = 2;
       }
+      // wt=zNear=(1-t)w_A+(t)w_B
+      // zNear-w_A=t(w_B-w_A)
+      //
       const Vertex &A = triangles[i].vertexs[vertex_idxs[0]];
       const Vertex &B = triangles[i].vertexs[vertex_idxs[1]];
       Vertex &C = triangles[i].vertexs[vertex_idxs[2]];
       float t_D, t_E;
-      t_D = (A.transform_pos.z() - zNear) /
-            (A.transform_pos.z() - C.transform_pos.z());
-      t_E = (B.transform_pos.z() - zNear) /
-            (B.transform_pos.z() - C.transform_pos.z());
-      float alpha_D = (1 - t_D) / A.transform_pos.w(),
-            beta_D = t_D / C.transform_pos.w();
-      float alpha_E = (1 - t_E) / B.transform_pos.w(),
-            beta_E = t_E / C.transform_pos.w();
-      Vertex D = (1.0f / (alpha_D + beta_D)) * (alpha_D * A + beta_D * C);
-      Vertex E = (1.0f / (alpha_E + beta_E)) * (alpha_E * B + beta_E * C);
+      t_D = (A.transform_pos.w() - zNear) /
+            (A.transform_pos.w() - C.transform_pos.w());
+      t_E = (B.transform_pos.w() - zNear) /
+            (B.transform_pos.w() - C.transform_pos.w());
+      Vertex D = (1 - t_D) * A + t_D * C;
+      Vertex E = (1 - t_E) * B + t_E * C;
       C = D;
       triangles.push_back(Triangle(B, E, D));
       if (remain_size != i) {
@@ -196,16 +209,12 @@ void crop_triangles_zNear(std::vector<Triangle> &triangles, float zNear) {
       Vertex &B = triangles[i].vertexs[vertex_idxs[1]];
       Vertex &C = triangles[i].vertexs[vertex_idxs[2]];
       float t_B, t_C;
-      t_B = (A.transform_pos.z() - zNear) /
-            (A.transform_pos.z() - B.transform_pos.z());
-      t_C = (A.transform_pos.z() - zNear) /
-            (A.transform_pos.z() - C.transform_pos.z());
-      float alpha_B = (1 - t_B) / A.transform_pos.w(),
-            beta_B = t_B / B.transform_pos.w();
-      float alpha_C = (1 - t_C) / A.transform_pos.w(),
-            beta_C = t_C / C.transform_pos.w();
-      B = (1.0f / (alpha_B + beta_B)) * (alpha_B * A + beta_B * B);
-      C = (1.0f / (alpha_C + beta_C)) * (alpha_C * A + beta_C * C);
+      t_B = (A.transform_pos.w() - zNear) /
+            (A.transform_pos.w() - B.transform_pos.w());
+      t_C = (A.transform_pos.w() - zNear) /
+            (A.transform_pos.w() - C.transform_pos.w());
+      B = (1 - t_B) * A + t_B * B;
+      C = (1 - t_C) * A + t_C * C;
       if (remain_size != i) {
         triangles[remain_size] = triangles[i];
       }
@@ -260,16 +269,12 @@ void crop_triangles_zFar(std::vector<Triangle> &triangles, float zFar) {
       const Vertex &B = triangles[i].vertexs[vertex_idxs[1]];
       Vertex &C = triangles[i].vertexs[vertex_idxs[2]];
       float t_D, t_E;
-      t_D = (A.transform_pos.z() - zFar) /
-            (A.transform_pos.z() - C.transform_pos.z());
-      t_E = (B.transform_pos.z() - zFar) /
-            (B.transform_pos.z() - C.transform_pos.z());
-      float alpha_D = (1 - t_D) / A.transform_pos.w(),
-            beta_D = t_D / C.transform_pos.w();
-      float alpha_E = (1 - t_E) / B.transform_pos.w(),
-            beta_E = t_E / C.transform_pos.w();
-      Vertex D = (1.0f / (alpha_D + beta_D)) * (alpha_D * A + beta_D * C);
-      Vertex E = (1.0f / (alpha_E + beta_E)) * (alpha_E * B + beta_E * C);
+      t_D = (A.transform_pos.w() - zFar) /
+            (A.transform_pos.w() - C.transform_pos.w());
+      t_E = (B.transform_pos.w() - zFar) /
+            (B.transform_pos.w() - C.transform_pos.w());
+      Vertex D = (1 - t_D) * A + t_D * C;
+      Vertex E = (1 - t_E) * B + t_E * C;
       C = D;
       triangles.push_back(Triangle(B, E, D));
       if (remain_size != i) {
@@ -297,16 +302,12 @@ void crop_triangles_zFar(std::vector<Triangle> &triangles, float zFar) {
       Vertex &B = triangles[i].vertexs[vertex_idxs[1]];
       Vertex &C = triangles[i].vertexs[vertex_idxs[2]];
       float t_B, t_C;
-      t_B = (A.transform_pos.z() - zFar) /
-            (A.transform_pos.z() - B.transform_pos.z());
-      t_C = (A.transform_pos.z() - zFar) /
-            (A.transform_pos.z() - C.transform_pos.z());
-      float alpha_B = (1 - t_B) / A.transform_pos.w(),
-            beta_B = t_B / B.transform_pos.w();
-      float alpha_C = (1 - t_C) / A.transform_pos.w(),
-            beta_C = t_C / C.transform_pos.w();
-      B = (1.0f / (alpha_B + beta_B)) * (alpha_B * A + beta_B * B);
-      C = (1.0f / (alpha_C + beta_C)) * (alpha_C * A + beta_C * C);
+      t_B = (A.transform_pos.w() - zFar) /
+            (A.transform_pos.w() - B.transform_pos.w());
+      t_C = (A.transform_pos.w() - zFar) /
+            (A.transform_pos.w() - C.transform_pos.w());
+      B = (1 - t_B) * A + t_B * B;
+      C = (1 - t_C) * A + t_C * C;
       if (remain_size != i) {
         triangles[remain_size] = triangles[i];
       }

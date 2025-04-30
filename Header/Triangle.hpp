@@ -2,10 +2,11 @@
 #include "Eigen/Core"
 #include "Object.hpp"
 #include "Scene.hpp"
-#include <Texture.hpp>
+#include "Texture.hpp"
 #include <tuple>
 #include <vector>
 
+struct Model;
 struct Vertex {
   // 这三个运算符是给插值运算用的
   friend Vertex operator+(const Vertex &x, const Vertex &y) {
@@ -37,8 +38,9 @@ struct Triangle : public Object {
   Triangle() = default;
   Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2);
   void rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
-                     const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                     Scene &scene) override;
+                     const Eigen::Matrix<float, 3, 3> &normal_mvp, Scene &scene,
+                     const Model &model) override;
+  void move(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,
                                                            Eigen::Vector2f v1,
                                                            Eigen::Vector2f v2,
@@ -51,6 +53,6 @@ struct Triangle : public Object {
   friend void crop_triangles_xRight(std::vector<Triangle> &triangles);
   friend void crop_triangles_yBottom(std::vector<Triangle> &triangles);
   friend void crop_triangles_yTop(std::vector<Triangle> &triangles);
-  void draw(Scene &scene);
+  void draw(Scene &scene, const Model &model);
   Vertex vertexs[3];
 };

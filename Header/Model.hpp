@@ -1,15 +1,26 @@
 #pragma once
 #include "Eigen/Core"
+#include "Texture.hpp"
 #include <Triangle.hpp>
+#include <array>
 #include <global.hpp>
+#include <memory>
 #include <vector>
 
 struct Model : public Object {
+  static constexpr int TEXTURE_NUM = 2;
+  enum { TEXTURE, NORMAL_TEXTURE };
   void rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
-                     const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                     Scene &scene) override;
+                     const Eigen::Matrix<float, 3, 3> &normal_mvp, Scene &scene,
+                     const Model &model) override;
+  void set_pos(const Eigen::Vector3f &pos);
+  void move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
+  void set_scale(float rate);
+  void set_texture(const std::shared_ptr<Texture> &texture);
+  void set_normal_texture(const std::shared_ptr<Texture> &texture);
   ~Model();
   std::vector<Object *> objects;
-  Texture *texture = nullptr;
-  Texture *normal_texture = nullptr;
+  Eigen::Vector3f pos = Eigen::Vector3f{0.0f, 0.0f, 0.0f};
+  float scale = 1.0;
+  std::array<std::shared_ptr<Texture>, TEXTURE_NUM> textures{};
 };
