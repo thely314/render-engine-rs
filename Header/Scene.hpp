@@ -2,12 +2,13 @@
 #include "Eigen/Core"
 #include "Object.hpp"
 #include "global.hpp"
+#include <functional>
 #include <string>
 #include <vector>
 
 struct light {
-  Eigen::Vector3f intensity;
   Eigen::Vector3f pos;
+  Eigen::Vector3f intensity;
 };
 struct Scene {
   Scene(int width, int height);
@@ -30,4 +31,5 @@ struct Scene {
   float zFar;
   int width;
   int height;
+  std::function<Eigen::Vector3f(Vertex, const Scene &)> shader;
 };

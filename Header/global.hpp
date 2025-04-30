@@ -1,4 +1,5 @@
 #pragma once
+#include "Eigen/Core"
 #include <Eigen/Dense>
 #include <cmath>
 
@@ -58,5 +59,5 @@ get_projection_matrix(const float fov, const float aspect_ratio,
   scale(2, 2) = 2.0f / (zNear - zFar);
   return scale * move * perspective;
 }
-
+struct Vertex;
 struct Scene;

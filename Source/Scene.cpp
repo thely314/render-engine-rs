@@ -23,7 +23,7 @@ void Scene::start_render() {
       view.block<3, 3>(0, 0).inverse().transpose() *
       model.block<3, 3>(0, 0).inverse().transpose();
   for (auto obj : objects) {
-    obj->rasterization(mvp, normal_mvp, this);
+    obj->rasterization(mvp, normal_mvp, *this);
   }
 }
 void Scene::add_model(Object *model) { objects.push_back(model); }

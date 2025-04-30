@@ -1,8 +1,10 @@
+#include "Eigen/Core"
 #include "Model.hpp"
 #include "Scene.hpp"
 #include "Triangle.hpp"
 #include "assimp/mesh.h"
 #include <Eigen/Dense>
+#include <algorithm>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -33,13 +35,12 @@ void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
   }
   for (int i = 0; i < mesh->mNumFaces; i++) {
     aiFace face = mesh->mFaces[i];
-    for (unsigned int j = 0; j < face.mNumIndices; j++)
-      indices.push_back(face.mIndices[j]);
-  }
-  for (int i = 0; i < indices.size() - 2; ++i) {
-    model.objects.push_back(new Triangle(vertices[indices[i]],
-                                         vertices[indices[i + 1]],
-                                         vertices[indices[i + 2]]));
+    if (face.mNumIndices == 3) {
+      const Vertex &v0 = vertices[face.mIndices[0]];
+      const Vertex &v1 = vertices[face.mIndices[1]];
+      const Vertex &v2 = vertices[face.mIndices[2]];
+      model.objects.push_back(new Triangle(v0, v1, v2));
+    }
   }
 }
 void processNode(aiNode *node, const aiScene *scene, Model &model) {
@@ -51,7 +52,29 @@ void processNode(aiNode *node, const aiScene *scene, Model &model) {
     processNode(node->mChildren[i], scene, model);
   }
 }
-
+Eigen::Vector3f phong_shader(const Vertex &point, const Scene &scene) {
+  Eigen::Vector3f Ks{0.8f, 0.8f, 0.8f};
+  Eigen::Vector3f Kd = point.color;
+  Eigen::Vector3f Ka{0.005, 0.005, 0.005};
+  Eigen::Vector3f ambient_intensity = {10, 10, 10};
+  Eigen::Vector3f result_color{0.0f, 0.0f, 0.0f};
+  for (auto &&light : scene.lights) {
+    Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
+    Eigen::Vector3f light_dir = light.pos - point.pos;
+    Eigen::Vector3f half_dir = (light_dir - eye_dir).normalized();
+    float light_distance_square = light_dir.dot(light_dir);
+    light_dir = light_dir.normalized();
+    Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
+    Eigen::Vector3f diffuse =
+        Kd.cwiseProduct(light.intensity / light_distance_square *
+                        std::max(0.0f, point.normal.dot(light_dir)));
+    Eigen::Vector3f specular =
+        Ks.cwiseProduct(light.intensity / light_distance_square *
+                        pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
+    result_color = result_color + ambient + diffuse + specular;
+  }
+  return result_color;
+};
 int main() {
   Assimp::Importer importer;
   const aiScene *scene =
@@ -63,12 +86,15 @@ int main() {
   }
   Model *model = new Model();
   processNode(scene->mRootNode, scene, *model);
-  Scene Screen = Scene(800, 800);
-  Screen.add_model(model);
-  Screen.set_eye_pos({0, 1.0f, 5.0f});
-  Screen.set_view_dir({0, 0, -1});
-  Screen.set_zNear(-0.1f);
-  Screen.set_zFar(1000.0f);
-  Screen.start_render();
-  Screen.save_to_file("output.png");
+  Scene my_scene = Scene(800, 800);
+  my_scene.add_model(model);
+  my_scene.set_eye_pos({0, 3.0f, 5.0f});
+  my_scene.set_view_dir({0, 0, -1});
+  my_scene.set_zNear(-0.1f);
+  my_scene.set_zFar(1000.0f);
+  my_scene.lights.push_back(light{{20, 20, 0}, {500, 500, 500}});
+  my_scene.lights.push_back(light{{-20, 20, 0}, {500, 500, 500}});
+  my_scene.shader = phong_shader;
+  my_scene.start_render();
+  my_scene.save_to_file("output.png");
 }

@@ -7,10 +7,14 @@ Model::~Model() {
 }
 void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
                           const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                          Scene *scene) {
+                          Scene &scene) {
   int i = 0;
   for (auto obj : objects) {
     obj->rasterization(mvp, normal_mvp, scene);
     std::cout << ++i << "\n";
   }
+  // for (int i = 10195; i < 10200; ++i) {
+  //   objects[i]->rasterization(mvp, normal_mvp, scene);
+  // }
+  // objects[10199]->rasterization(mvp, normal_mvp, scene);
 }

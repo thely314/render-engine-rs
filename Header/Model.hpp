@@ -7,7 +7,7 @@
 struct Model : public Object {
   void rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
                      const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                     Scene *scene) override;
+                     Scene &scene) override;
   ~Model();
   std::vector<Object *> objects;
   Texture *texture = nullptr;
