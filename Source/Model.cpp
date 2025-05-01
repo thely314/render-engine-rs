@@ -43,9 +43,15 @@ void Model::set_scale(float rate) {
     obj->move(scale_matrix);
   }
 }
-void Model::set_texture(const std::shared_ptr<Texture> &texture) {
-  textures[TEXTURE] = texture;
+void Model::set_diffuse_texture(const std::shared_ptr<Texture> &texture) {
+  textures[DIFFUSE_TEXTURE] = texture;
+}
+void Model::set_specular_texture(const std::shared_ptr<Texture> &texture) {
+  textures[SPECULAR_TEXTURE] = texture;
 }
 void Model::set_normal_texture(const std::shared_ptr<Texture> &texture) {
   textures[NORMAL_TEXTURE] = texture;
+}
+void Model::set_glow_texture(const std::shared_ptr<Texture> &texture) {
+  textures[GLOW_TEXTURE] = texture;
 }

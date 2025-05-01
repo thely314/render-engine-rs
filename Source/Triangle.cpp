@@ -2,6 +2,8 @@
 #include "Model.hpp"
 #include "global.hpp"
 #include <Triangle.hpp>
+#include <cassert>
+#include <cstdlib>
 #include <iostream>
 
 void Triangle::draw(Scene &scene, const Model &model) {
@@ -31,22 +33,38 @@ void Triangle::draw(Scene &scene, const Model &model) {
       (vertexs[2].transform_pos.x() + 1) * 0.5f * scene.width;
   vertexs[2].transform_pos.y() =
       (1 - vertexs[2].transform_pos.y()) * 0.5f * scene.height;
-  int box_left =
-      std::max(0, (int)std::min(vertexs[0].transform_pos.x(),
-                                std::min(vertexs[1].transform_pos.x(),
-                                         vertexs[2].transform_pos.x())));
-  int box_right = std::min(
-      scene.width - 1, (int)std::max(vertexs[0].transform_pos.x(),
-                                     std::max(vertexs[1].transform_pos.x(),
-                                              vertexs[2].transform_pos.x())));
-  int box_bottom =
-      std::max(0, (int)std::min(vertexs[0].transform_pos.y(),
-                                std::min(vertexs[1].transform_pos.y(),
-                                         vertexs[2].transform_pos.y())));
-  int box_top = std::min(scene.height - 1,
-                         (int)std::max(vertexs[0].transform_pos.y(),
-                                       std::max(vertexs[1].transform_pos.y(),
-                                                vertexs[2].transform_pos.y())));
+  int box_left = (int)std::min(
+      vertexs[0].transform_pos.x(),
+      std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
+  int box_right = std::max(
+      vertexs[0].transform_pos.x(),
+      std::max(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
+  int box_bottom = std::min(
+      vertexs[0].transform_pos.y(),
+      std::min(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
+  int box_top = std::max(
+      vertexs[0].transform_pos.y(),
+      std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
+  if (box_top >= scene.height) {
+    box_top = scene.height - 1;
+  }
+  if (box_right >= scene.width) {
+    box_right = scene.width - 1;
+  }
+  Eigen::Vector3f edge1 = vertexs[1].pos - vertexs[0].pos,
+                  edge2 = vertexs[2].pos - vertexs[0].pos;
+  Eigen::Vector2f uv_edge1 =
+                      vertexs[1].texture_coords - vertexs[0].texture_coords,
+                  uv_edge2 =
+                      vertexs[2].texture_coords - vertexs[0].texture_coords;
+  Eigen::Vector3f tangent =
+      (uv_edge2.y() * edge1 - uv_edge1.y() * edge2).normalized();
+  Eigen::Vector3f binormal =
+      (uv_edge1.x() * edge2 - uv_edge2.x() * edge1).normalized();
+  if (uv_edge2.y() * uv_edge1.x() - uv_edge1.y() * uv_edge2.x() <= 0) {
+    tangent = -tangent;
+    binormal = -binormal;
+  };
   for (int y = box_bottom; y <= box_top; ++y) {
     for (int x = box_left; x <= box_right; ++x) {
       auto [alpha, beta, gamma] = Triangle::cal_bary_coord_2D(
@@ -80,7 +98,7 @@ void Triangle::draw(Scene &scene, const Model &model) {
                        {148 / 255.f, 121.0 / 255.f, 92.0 / 255.f},
                        point_uv};
           scene.frame_buffer[scene.get_index(x, y)] =
-              scene.shader(point, scene, model);
+              scene.shader(point, scene, model, tangent, binormal);
         }
       }
     }

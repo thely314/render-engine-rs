@@ -1,24 +1,21 @@
 #include "Eigen/Core"
 #include <Texture.hpp>
 #include <cstdio>
-#include <iostream>
 Texture::Texture(const char *filename) {
-  data = stbi_load(filename, &width, &height, &channels, 3);
+  data = stbi_load(filename, &width, &height, &channels, 0);
   if (data == nullptr) {
     printf("Error: could not open file %s\n", filename);
   }
-  std::cout << width << ' ' << height << "\n";
 }
 int Texture::get_index(int x, int y) {
   return channels * (width * (height - y - 1) + x);
   // return channels * (width * y + x);
 };
 Eigen::Vector3f Texture::get_color(float u, float v) {
-  assert(data != nullptr);
   u *= width;
   v *= height;
-  u = std::clamp(u, 0.0f, width - 1.0f);
-  v = std::clamp(v, 0.0f, height - 1.0f);
+  u = std::clamp(u, 0.0f, width * 1.0f);
+  v = std::clamp(v, 0.0f, height * 1.0f);
 
   int center_x = round(u), center_y = round(v);
   float h_rate = u + 0.5f - center_x, v_rate = v + 0.5f - center_y;

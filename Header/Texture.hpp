@@ -11,4 +11,5 @@ struct Texture {
   int width;
   int height;
   int channels;
+  // TODO:实现各向异性过滤来解决远距离下的走样
 };

@@ -31,6 +31,8 @@ struct Scene {
   float zFar;
   int width;
   int height;
-  std::function<Eigen::Vector3f(const Vertex &, const Scene &, const Model &)>
+  std::function<Eigen::Vector3f(Vertex &, const Scene &, const Model &,
+                                const Eigen::Vector3f &,
+                                const Eigen::Vector3f &)>
       shader;
 };
