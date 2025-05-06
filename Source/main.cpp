@@ -1,23 +1,15 @@
 #include "Eigen/Core"
 #include "Model.hpp"
 #include "Scene.hpp"
-#include "Texture.hpp"
 #include "Triangle.hpp"
-#include "assimp/mesh.h"
 #include "global.hpp"
-#include <Eigen/Dense>
-#include <algorithm>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-#include <vector>
+#include <format>
 void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
   std::vector<Vertex> vertices;
   std::vector<int> indices;
-
   for (int i = 0; i < mesh->mNumVertices; i++) {
     Vertex vertex;
     vertex.pos = Eigen::Vector3f(mesh->mVertices[i].x, mesh->mVertices[i].y,
@@ -64,22 +56,24 @@ Eigen::Vector3f phong_shader(Vertex &point, const Scene &scene,
   Eigen::Vector3f Ka{0.005, 0.005, 0.005};
   Eigen::Vector3f ambient_intensity = {10, 10, 10};
   Eigen::Vector3f result_color{0.0f, 0.0f, 0.0f};
-  std::vector<light> lights = {{{20, 20, 20}, {500, 500, 500}},
-                               {{-20, 20, 0}, {500, 500, 500}}};
-  for (auto &&light : lights) {
+  for (auto &&light : scene.lights) {
+    Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
+    if (light->in_shadow(point)) {
+      result_color += ambient;
+      continue;
+    }
     Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
-    Eigen::Vector3f light_dir = light.pos - point.pos;
+    Eigen::Vector3f light_dir = light->pos - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
     Eigen::Vector3f half_dir = (light_dir - eye_dir).normalized();
-    Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
     Eigen::Vector3f diffuse =
-        Kd.cwiseProduct(light.intensity / light_distance_square *
+        Kd.cwiseProduct(light->intensity / light_distance_square *
                         std::max(0.0f, point.normal.dot(light_dir)));
     Eigen::Vector3f specular =
-        Ks.cwiseProduct(light.intensity / light_distance_square *
+        Ks.cwiseProduct(light->intensity / light_distance_square *
                         pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
-    result_color = result_color + ambient + diffuse + specular;
+    result_color += ambient + diffuse + specular;
   }
   return result_color;
 };
@@ -126,17 +120,21 @@ Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
         point.texture_coords.x(), point.texture_coords.y());
   }
   for (auto &&light : scene.lights) {
+    Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
+    if (light->in_shadow(point)) {
+      result_color += ambient;
+      continue;
+    }
     Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
-    Eigen::Vector3f light_dir = light.pos - point.pos;
+    Eigen::Vector3f light_dir = light->pos - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
     Eigen::Vector3f half_dir = (light_dir - eye_dir).normalized();
-    Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
     Eigen::Vector3f diffuse =
-        Kd.cwiseProduct(light.intensity / light_distance_square *
+        Kd.cwiseProduct(light->intensity / light_distance_square *
                         std::max(0.0f, point.normal.dot(light_dir)));
     Eigen::Vector3f specular =
-        Ks.cwiseProduct(light.intensity / light_distance_square *
+        Ks.cwiseProduct(light->intensity / light_distance_square *
                         pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
     result_color = result_color + ambient + diffuse + specular;
   }
@@ -145,36 +143,57 @@ Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
 int main() {
   Assimp::Importer importer;
   const aiScene *scene =
-      importer.ReadFile("../models/diablo3/diablo3_pose.obj",
+      importer.ReadFile("../models/utah_teapot.obj",
+                        // "../models/diablo3/diablo3_pose.obj",
                         aiProcess_Triangulate | aiProcess_GenNormals);
   if (scene == nullptr) {
-    std::cout << importer.GetErrorString() << '\n';
+    // std::cerr << importer.GetErrorString() << '\n';
+    fprintf(stderr, "%s\n", importer.GetErrorString());
     return 1;
   }
   Model *model = new Model();
+
   processNode(scene->mRootNode, scene, *model);
+
   std::shared_ptr<Texture> diffuse_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  model->set_diffuse_texture(diffuse_texture);
+  // model->set_diffuse_texture(diffuse_texture);
+
   std::shared_ptr<Texture> specular_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  model->set_specular_texture(specular_texture);
+  // model->set_specular_texture(specular_texture);
+
   std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
       "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  model->set_normal_texture(normal_texture);
+  // model->set_normal_texture(normal_texture);
+
   std::shared_ptr<Texture> glow_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  model->set_glow_texture(glow_texture);
+  // model->set_glow_texture(glow_texture);
+
   Scene my_scene = Scene(1024, 1024);
-  model->set_scale(2.5f);
+  // model->set_scale(2.5f);
   my_scene.add_model(model);
-  my_scene.set_eye_pos({0.0f, 0.0f, 7.0f});
+  my_scene.set_eye_pos({0.0f, 1.0f, 10.0f});
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-50.0f);
-  my_scene.lights.push_back({{20, 20, 20}, {500, 500, 500}});
-  my_scene.lights.push_back({{-20, 20, 0}, {500, 500, 500}});
+  // light *l1 = new light{{20, 20, 20}, {500, 500, 500}};
+  // light *l2 = new light{{-20, 20, 0}, {500, 500, 500}};
+  spot_light *l1 = new spot_light;
+  // spot_light *l2 = new spot_light;
+  l1->pos = Eigen::Vector3f{20, 20, 20};
+  l1->intensity = Eigen::Vector3f{1000, 1000, 1000};
+  l1->light_dir = (model->pos - l1->pos).normalized();
+  // l2->pos = Eigen::Vector3f{-20, 20, 0};
+  // l2->intensity = Eigen::Vector3f{500, 500, 500};
+
+  my_scene.lights.push_back(l1);
+  // my_scene.lights.push_back(l2);
   my_scene.shader = texture_shader;
   my_scene.start_render();
   my_scene.save_to_file("output.png");
+  delete model;
+  delete l1;
+  // delete l2;
 }

@@ -1,6 +1,4 @@
-#include "Eigen/Core"
 #include <Texture.hpp>
-#include <cstdio>
 Texture::Texture(const char *filename) {
   data = stbi_load(filename, &width, &height, &channels, 0);
   if (data == nullptr) {

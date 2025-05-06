@@ -2,14 +2,11 @@
 #include "Eigen/Core"
 #include "Model.hpp"
 #include "global.hpp"
+#include "light.hpp"
 #include <functional>
 #include <string>
 #include <vector>
 
-struct light {
-  Eigen::Vector3f pos;
-  Eigen::Vector3f intensity;
-};
 struct Scene {
   Scene(int width, int height);
   void start_render();
@@ -22,7 +19,7 @@ struct Scene {
   void set_zNear(float zNear);
   void set_zFar(float zFar);
   std::vector<Model *> objects;
-  std::vector<light> lights;
+  std::vector<light *> lights;
   std::vector<Eigen::Vector3f> frame_buffer;
   std::vector<float> z_buffer;
   Eigen::Vector3f eye_pos;

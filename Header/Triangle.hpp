@@ -3,6 +3,7 @@
 #include "Object.hpp"
 #include "Scene.hpp"
 #include "Texture.hpp"
+#include "light.hpp"
 #include <tuple>
 #include <vector>
 
@@ -46,13 +47,16 @@ struct Triangle : public Object {
                                                            Eigen::Vector2f v2,
                                                            Eigen::Vector2f p);
   static bool inside_triangle(float alpha, float beta, float gamma);
-  friend void crop_triangles_zNear(std::vector<Triangle> &triangles,
-                                   float zNear);
-  friend void crop_triangles_zFar(std::vector<Triangle> &triangles, float zFar);
+  friend void crop_triangles_zNear(std::vector<Triangle> &triangles);
+  friend void crop_triangles_zFar(std::vector<Triangle> &triangles);
   friend void crop_triangles_xLeft(std::vector<Triangle> &triangles);
   friend void crop_triangles_xRight(std::vector<Triangle> &triangles);
   friend void crop_triangles_yBottom(std::vector<Triangle> &triangles);
   friend void crop_triangles_yTop(std::vector<Triangle> &triangles);
   void draw(Scene &scene, const Model &model);
+  void generate_shadowmap(const Eigen::Matrix<float, 4, 4> &mvp,
+                          const Eigen::Matrix<float, 3, 3> &normal_mvp,
+                          spot_light &light) override;
+  void draw_shadowmap(spot_light &light);
   Vertex vertexs[3];
 };

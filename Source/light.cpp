@@ -1,0 +1,62 @@
+#include "light.hpp"
+#include "Scene.hpp"
+#include "Triangle.hpp"
+#include "global.hpp"
+#include <cstdlib>
+#include <iostream>
+light::light() : pos(0.0f, 0.0f, 0.0f), intensity(0.0f, 0.0f, 0.0f) {}
+light::light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity)
+    : pos(pos), intensity(intensity) {}
+void light::look_at(const Scene &scene) {}
+bool light::in_shadow(Vertex &) { return false; }
+spot_light::spot_light()
+    : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
+      zNear(-0.1f), zFar(-100.0f), zbuffer_width(800), zbuffer_height(800),
+      mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
+  z_buffer.resize(zbuffer_width * zbuffer_height);
+}
+int spot_light::get_index(int x, int y) {
+  return zbuffer_width * (zbuffer_height - y - 1) + x;
+}
+void spot_light::look_at(const Scene &scene) {
+  std::fill(z_buffer.begin(), z_buffer.end(), -INFINITY);
+  Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
+                             view = get_view_matrix(pos, light_dir),
+                             projection = get_projection_matrix(
+                                 fov, aspect_ratio, zNear, zFar);
+  Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
+  this->mvp = mvp;
+  std::cout << mvp << "\n\n";
+  Eigen::Matrix<float, 3, 3> normal_mvp =
+      view.block<3, 3>(0, 0).inverse().transpose() *
+      model.block<3, 3>(0, 0).inverse().transpose();
+  for (auto obj : scene.objects) {
+    obj->generate_shadowmap(mvp, normal_mvp, *this);
+  }
+}
+bool spot_light::in_shadow(Vertex &point) {
+  point.transform_pos = point.pos.homogeneous();
+  point.transform_pos = mvp * point.transform_pos;
+  // std::cout << point.transform_pos << "\n\n";
+  if (point.transform_pos.x() < point.transform_pos.w() ||
+      point.transform_pos.x() > -point.transform_pos.w() ||
+      point.transform_pos.y() < point.transform_pos.w() ||
+      point.transform_pos.y() > -point.transform_pos.w() ||
+      point.transform_pos.z() < point.transform_pos.w() ||
+      point.transform_pos.z() > -point.transform_pos.w()) {
+    return true;
+  }
+  point.transform_pos.x() /= point.transform_pos.w();
+  point.transform_pos.y() /= point.transform_pos.w();
+  point.transform_pos.z() /= point.transform_pos.w();
+  point.transform_pos.x() =
+      (point.transform_pos.x() + 1) * 0.5f * zbuffer_width;
+  point.transform_pos.y() =
+      (point.transform_pos.y() + 1) * 0.5f * zbuffer_height;
+  if (abs(point.transform_pos.z() -
+          z_buffer[get_index(point.transform_pos.x(),
+                             point.transform_pos.y())]) < 10 * EPSILON) {
+    return false;
+  }
+  return true;
+}

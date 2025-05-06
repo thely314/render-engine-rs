@@ -1,11 +1,9 @@
 #include "Eigen/Core"
-#include "Model.hpp"
+#include <Scene.hpp>
+#include <algorithm>
 #include <cmath>
-#include <iostream>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "global.hpp"
-#include <Scene.hpp>
 #include <stb_image.h>
 #include <stb_image_write.h>
 Scene::Scene(int width, int height)
@@ -15,15 +13,20 @@ Scene::Scene(int width, int height)
   z_buffer.resize(width * height, -INFINITY);
 }
 void Scene::start_render() {
-
+  std::fill(frame_buffer.begin(), frame_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
+  std::fill(z_buffer.begin(), z_buffer.end(), -INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
                              projection =
-                                 get_projection_matrix(45, 1.0f, -0.1, -100);
+                                 get_projection_matrix(45, 1.0f, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   Eigen::Matrix<float, 3, 3> normal_mvp =
       view.block<3, 3>(0, 0).inverse().transpose() *
       model.block<3, 3>(0, 0).inverse().transpose();
+  for (auto light : lights) {
+    light->look_at(*this);
+  }
   for (auto obj : objects) {
     obj->rasterization(mvp, normal_mvp, *this, *obj);
   }
@@ -43,12 +46,8 @@ void Scene::save_to_file(std::string filename) {
   }
   stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
 }
-Scene::~Scene() {
-  for (auto obj : objects) {
-    delete obj;
-  }
-}
-int Scene::get_index(int x, int y) { return (width * (height - y - 1) + x); }
+Scene::~Scene() {}
+int Scene::get_index(int x, int y) { return width * (height - y - 1) + x; }
 void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
   this->eye_pos = eye_pos;
 }

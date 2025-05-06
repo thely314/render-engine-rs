@@ -1,8 +1,4 @@
 #include "Model.hpp"
-#include "Eigen/Core"
-#include "Texture.hpp"
-#include <iostream>
-#include <memory>
 Model::~Model() {
   for (auto obj : objects) {
     delete obj;
@@ -11,11 +7,16 @@ Model::~Model() {
 void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
                           const Eigen::Matrix<float, 3, 3> &normal_mvp,
                           Scene &scene, const Model &model) {
-  int i = 0;
-  // std::cout << mvp;
+  // int i = 0;
   for (auto obj : objects) {
     obj->rasterization(mvp, normal_mvp, scene, *this);
-    // std::cout << ++i << "\n";
+  }
+}
+void Model::generate_shadowmap(const Eigen::Matrix<float, 4, 4> &mvp,
+                               const Eigen::Matrix<float, 3, 3> &normal_mvp,
+                               spot_light &light) {
+  for (auto obj : objects) {
+    obj->generate_shadowmap(mvp, normal_mvp, light);
   }
 }
 void Model::set_pos(const Eigen::Vector3f &pos) {

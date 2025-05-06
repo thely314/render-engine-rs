@@ -20,6 +20,9 @@ struct Model : public Object {
   void set_specular_texture(const std::shared_ptr<Texture> &texture);
   void set_normal_texture(const std::shared_ptr<Texture> &texture);
   void set_glow_texture(const std::shared_ptr<Texture> &texture);
+  void generate_shadowmap(const Eigen::Matrix<float, 4, 4> &mvp,
+                          const Eigen::Matrix<float, 3, 3> &normal_mvp,
+                          spot_light &light) override;
   ~Model();
   std::vector<Object *> objects;
   Eigen::Vector3f pos = Eigen::Vector3f{0.0f, 0.0f, 0.0f};
