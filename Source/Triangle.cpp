@@ -1,4 +1,5 @@
 #include <Triangle.hpp>
+#include <iostream>
 
 void Triangle::draw(Scene &scene, const Model &model) {
   vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();

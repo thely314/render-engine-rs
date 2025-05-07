@@ -2,8 +2,8 @@
 #include "Scene.hpp"
 #include "Triangle.hpp"
 #include "global.hpp"
+#include <cmath>
 #include <cstdlib>
-#include <iostream>
 light::light() : pos(0.0f, 0.0f, 0.0f), intensity(0.0f, 0.0f, 0.0f) {}
 light::light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity)
     : pos(pos), intensity(intensity) {}
@@ -11,7 +11,7 @@ void light::look_at(const Scene &scene) {}
 bool light::in_shadow(Vertex &) { return false; }
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-100.0f), zbuffer_width(800), zbuffer_height(800),
+      zNear(-0.1f), zFar(-100.0f), zbuffer_width(12800), zbuffer_height(12800),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
   z_buffer.resize(zbuffer_width * zbuffer_height);
 }
@@ -26,7 +26,6 @@ void spot_light::look_at(const Scene &scene) {
                                  fov, aspect_ratio, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   this->mvp = mvp;
-  std::cout << mvp << "\n\n";
   Eigen::Matrix<float, 3, 3> normal_mvp =
       view.block<3, 3>(0, 0).inverse().transpose() *
       model.block<3, 3>(0, 0).inverse().transpose();
@@ -37,7 +36,6 @@ void spot_light::look_at(const Scene &scene) {
 bool spot_light::in_shadow(Vertex &point) {
   point.transform_pos = point.pos.homogeneous();
   point.transform_pos = mvp * point.transform_pos;
-  // std::cout << point.transform_pos << "\n\n";
   if (point.transform_pos.x() < point.transform_pos.w() ||
       point.transform_pos.x() > -point.transform_pos.w() ||
       point.transform_pos.y() < point.transform_pos.w() ||
@@ -53,9 +51,8 @@ bool spot_light::in_shadow(Vertex &point) {
       (point.transform_pos.x() + 1) * 0.5f * zbuffer_width;
   point.transform_pos.y() =
       (point.transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  if (abs(point.transform_pos.z() -
-          z_buffer[get_index(point.transform_pos.x(),
-                             point.transform_pos.y())]) < 10 * EPSILON) {
+  if (point.transform_pos.z() + EPSILON >
+      z_buffer[get_index(point.transform_pos.x(), point.transform_pos.y())]) {
     return false;
   }
   return true;

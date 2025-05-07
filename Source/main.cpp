@@ -142,10 +142,10 @@ Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
 }
 int main() {
   Assimp::Importer importer;
-  const aiScene *scene =
-      importer.ReadFile("../models/utah_teapot.obj",
-                        // "../models/diablo3/diablo3_pose.obj",
-                        aiProcess_Triangulate | aiProcess_GenNormals);
+  const aiScene *scene = importer.ReadFile(
+      // "../models/utah_teapot.obj",
+      "../models/diablo3/diablo3_pose.obj",
+      aiProcess_Triangulate | aiProcess_GenNormals);
   if (scene == nullptr) {
     // std::cerr << importer.GetErrorString() << '\n';
     fprintf(stderr, "%s\n", importer.GetErrorString());
@@ -157,24 +157,26 @@ int main() {
 
   std::shared_ptr<Texture> diffuse_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  // model->set_diffuse_texture(diffuse_texture);
+  model->set_diffuse_texture(diffuse_texture);
 
   std::shared_ptr<Texture> specular_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  // model->set_specular_texture(specular_texture);
+  model->set_specular_texture(specular_texture);
 
   std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
       "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  // model->set_normal_texture(normal_texture);
+  model->set_normal_texture(normal_texture);
 
   std::shared_ptr<Texture> glow_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  // model->set_glow_texture(glow_texture);
+  model->set_glow_texture(glow_texture);
 
   Scene my_scene = Scene(1024, 1024);
-  // model->set_scale(2.5f);
+  model->set_scale(2.5f);
+  // model->move(get_model_matrix({0, 1, 0}, 300, {0, -1, 0}));
   my_scene.add_model(model);
-  my_scene.set_eye_pos({0.0f, 1.0f, 10.0f});
+  // my_scene.set_eye_pos({0.0f, 0.0f, 10.0f});
+  my_scene.set_eye_pos({0.0f, 0.0f, 7.0f});
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-50.0f);
@@ -191,8 +193,13 @@ int main() {
   my_scene.lights.push_back(l1);
   // my_scene.lights.push_back(l2);
   my_scene.shader = texture_shader;
-  my_scene.start_render();
-  my_scene.save_to_file("output.png");
+  // my_scene.start_render();
+  // my_scene.save_to_file("output.png");
+  for (int i = 0; i != 36; ++i) {
+    my_scene.start_render();
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
+    model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  }
   delete model;
   delete l1;
   // delete l2;
