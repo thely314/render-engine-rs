@@ -21,14 +21,17 @@ void Scene::start_render() {
                              projection =
                                  get_projection_matrix(45, 1.0f, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
-  Eigen::Matrix<float, 3, 3> normal_mvp =
-      view.block<3, 3>(0, 0).inverse().transpose() *
-      model.block<3, 3>(0, 0).inverse().transpose();
+  // Eigen::Matrix<float, 3, 3> normal_mvp =
+  //     view.block<3, 3>(0, 0).inverse().transpose() *
+  //     model.block<3, 3>(0, 0).inverse().transpose();
   for (auto light : lights) {
     light->look_at(*this);
   }
   for (auto obj : objects) {
-    obj->rasterization(mvp, normal_mvp, *this, *obj);
+    obj->clip(mvp);
+  }
+  for (auto obj : objects) {
+    obj->rasterization(mvp, *this, *obj);
   }
 }
 void Scene::add_model(Model *model) { objects.push_back(model); }

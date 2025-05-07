@@ -1,6 +1,5 @@
 #pragma once
 #include "Eigen/Core"
-#include "light.hpp"
 #include <Eigen/Dense>
 #include <cmath>
 #include <iostream>
@@ -67,5 +66,6 @@ struct Vertex;
 struct Scene;
 struct Model;
 struct Triangle;
+struct Triangle_rasterization;
 struct light;
 struct spot_light;

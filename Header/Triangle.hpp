@@ -11,52 +11,98 @@ struct Model;
 struct Vertex {
   // 这三个运算符是给插值运算用的
   friend Vertex operator+(const Vertex &x, const Vertex &y) {
-    return Vertex{x.pos + y.pos,
-                  (x.normal + y.normal).normalized(),
-                  x.color + y.color,
-                  x.texture_coords + y.texture_coords,
-                  x.transform_pos + y.transform_pos,
-                  (x.tranfrom_normal + y.tranfrom_normal).normalized()};
+    return Vertex{x.pos + y.pos, (x.normal + y.normal).normalized(),
+                  x.color + y.color, x.texture_coords + y.texture_coords};
   }
   friend Vertex operator*(float rate, const Vertex &v) {
-    return Vertex{rate * v.pos,           rate * v.normal,
-                  rate * v.color,         rate * v.texture_coords,
-                  rate * v.transform_pos, rate * v.tranfrom_normal};
+    return Vertex{rate * v.pos, rate * v.normal, rate * v.color,
+                  rate * v.texture_coords};
   }
   friend Vertex operator*(const Vertex &v, float rate) {
-    return Vertex{rate * v.pos,           rate * v.normal,
-                  rate * v.color,         rate * v.texture_coords,
-                  rate * v.transform_pos, rate * v.tranfrom_normal};
+    return Vertex{rate * v.pos, rate * v.normal, rate * v.color,
+                  rate * v.texture_coords};
+  }
+  Eigen::Vector3f pos;
+  Eigen::Vector3f normal;
+  Eigen::Vector3f color;
+  Eigen::Vector2f texture_coords;
+};
+class Triangle : public Object {
+
+  friend struct Scene;
+  friend struct Model;
+  friend struct light;
+  friend struct spot_light;
+
+public:
+  Triangle() = default;
+  Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2);
+  void move(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  Vertex vertexs[3];
+
+private:
+  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                     const Model &model) override {};
+  void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
+                                spot_light &light) override {};
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+            std::vector<Object *> &objects) override;
+};
+
+struct Vertex_rasterization {
+  // 这三个运算符是给插值运算用的
+  friend Vertex_rasterization operator+(const Vertex_rasterization &x,
+                                        const Vertex_rasterization &y) {
+    return Vertex_rasterization{
+        x.pos + y.pos, (x.normal + y.normal).normalized(), x.color + y.color,
+        x.texture_coords + y.texture_coords, x.transform_pos + y.transform_pos};
+  }
+  friend Vertex_rasterization operator*(float rate,
+                                        const Vertex_rasterization &v) {
+    return Vertex_rasterization{rate * v.pos, rate * v.normal, rate * v.color,
+                                rate * v.texture_coords,
+                                rate * v.transform_pos};
+  }
+  friend Vertex_rasterization operator*(const Vertex_rasterization &v,
+                                        float rate) {
+    return Vertex_rasterization{rate * v.pos, rate * v.normal, rate * v.color,
+                                rate * v.texture_coords,
+                                rate * v.transform_pos};
   }
   Eigen::Vector3f pos;
   Eigen::Vector3f normal;
   Eigen::Vector3f color;
   Eigen::Vector2f texture_coords;
   Eigen::Vector4f transform_pos;
-  Eigen::Vector3f tranfrom_normal;
 };
-struct Triangle : public Object {
-  Triangle() = default;
-  Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2);
-  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
-                     const Eigen::Matrix<float, 3, 3> &normal_mvp, Scene &scene,
-                     const Model &model) override;
+class Triangle_rasterization : public Object {
+  friend struct Triangle;
+  friend struct Scene;
+  friend struct Model;
+  friend struct light;
+  friend struct spot_light;
+
+public:
+  Triangle_rasterization() = default;
+  Triangle_rasterization(const Triangle &normal_triangle);
+  Triangle_rasterization(const Vertex_rasterization &v0,
+                         const Vertex_rasterization &v1,
+                         const Vertex_rasterization &v2);
   void move(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  Vertex_rasterization vertexs[3];
+
+private:
+  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                     const Model &model) override;
+  void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
+                                spot_light &light) override;
+  virtual void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+                    std::vector<Object *> &objects) override;
+  template <int N, bool isLess>
+  friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,
                                                            Eigen::Vector2f v1,
                                                            Eigen::Vector2f v2,
                                                            Eigen::Vector2f p);
   static bool inside_triangle(float alpha, float beta, float gamma);
-  friend void crop_triangles_zNear(std::vector<Triangle> &triangles);
-  friend void crop_triangles_zFar(std::vector<Triangle> &triangles);
-  friend void crop_triangles_xLeft(std::vector<Triangle> &triangles);
-  friend void crop_triangles_xRight(std::vector<Triangle> &triangles);
-  friend void crop_triangles_yBottom(std::vector<Triangle> &triangles);
-  friend void crop_triangles_yTop(std::vector<Triangle> &triangles);
-  void draw(Scene &scene, const Model &model);
-  void generate_shadowmap(const Eigen::Matrix<float, 4, 4> &mvp,
-                          const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                          spot_light &light) override;
-  void draw_shadowmap(spot_light &light);
-  Vertex vertexs[3];
 };

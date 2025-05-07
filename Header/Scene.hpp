@@ -1,6 +1,7 @@
 #pragma once
 #include "Eigen/Core"
 #include "Model.hpp"
+#include "Triangle.hpp"
 #include "global.hpp"
 #include "light.hpp"
 #include <functional>
@@ -8,6 +9,11 @@
 #include <vector>
 
 struct Scene {
+  friend struct Triangle;
+  friend struct Triangle_rasterization;
+  friend struct Model;
+  friend struct light;
+  friend struct spot_light;
   Scene(int width, int height);
   void start_render();
   void add_model(Model *);
@@ -28,8 +34,8 @@ struct Scene {
   float zFar;
   int width;
   int height;
-  std::function<Eigen::Vector3f(Vertex &, const Scene &, const Model &,
-                                const Eigen::Vector3f &,
+  std::function<Eigen::Vector3f(Vertex_rasterization &, const Scene &,
+                                const Model &, const Eigen::Vector3f &,
                                 const Eigen::Vector3f &)>
       shader;
 };

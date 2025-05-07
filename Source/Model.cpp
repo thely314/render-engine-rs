@@ -1,24 +1,7 @@
 #include "Model.hpp"
-Model::~Model() {
-  for (auto obj : objects) {
-    delete obj;
-  }
-}
-void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp,
-                          const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                          Scene &scene, const Model &model) {
-  // int i = 0;
-  for (auto obj : objects) {
-    obj->rasterization(mvp, normal_mvp, scene, *this);
-  }
-}
-void Model::generate_shadowmap(const Eigen::Matrix<float, 4, 4> &mvp,
-                               const Eigen::Matrix<float, 3, 3> &normal_mvp,
-                               spot_light &light) {
-  for (auto obj : objects) {
-    obj->generate_shadowmap(mvp, normal_mvp, light);
-  }
-}
+#include "Texture.hpp"
+#include <memory>
+
 void Model::set_pos(const Eigen::Vector3f &pos) {
   Eigen::Vector3f movement = pos - this->pos;
   this->pos = pos;
@@ -29,11 +12,9 @@ void Model::set_pos(const Eigen::Vector3f &pos) {
     obj->move(modeling_matrix);
   }
 }
-void Model::move(const Eigen::Matrix<float, 4, 4> &matrix) {
-  for (auto obj : objects) {
-    obj->move(matrix);
-  }
-}
+
+Eigen::Vector3f Model::get_pos() const { return pos; }
+
 void Model::set_scale(float rate) {
   float scale_rate = rate / scale;
   scale = rate;
@@ -44,15 +25,56 @@ void Model::set_scale(float rate) {
     obj->move(scale_matrix);
   }
 }
-void Model::set_diffuse_texture(const std::shared_ptr<Texture> &texture) {
-  textures[DIFFUSE_TEXTURE] = texture;
+
+float Model::get_scale() const { return scale; }
+
+void Model::set_texture(const std::shared_ptr<Texture> &texture,
+                        Model::TEXTURES id) {
+  textures[id] = texture;
 }
-void Model::set_specular_texture(const std::shared_ptr<Texture> &texture) {
-  textures[SPECULAR_TEXTURE] = texture;
+
+std::shared_ptr<Texture> Model::get_texture(Model::TEXTURES id) const {
+  return textures[id];
 }
-void Model::set_normal_texture(const std::shared_ptr<Texture> &texture) {
-  textures[NORMAL_TEXTURE] = texture;
+
+void Model::move(const Eigen::Matrix<float, 4, 4> &matrix) {
+  for (auto obj : objects) {
+    obj->move(matrix);
+  }
 }
-void Model::set_glow_texture(const std::shared_ptr<Texture> &texture) {
-  textures[GLOW_TEXTURE] = texture;
+
+void Model::add(Object *obj) { objects.push_back(obj); }
+
+Model::~Model() {
+  for (auto obj : objects) {
+    delete obj;
+  }
+}
+
+void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                          const Model &model) {
+  for (auto obj : clip_objects) {
+    obj->rasterization(mvp, scene, *this);
+  }
+  clip_objects.clear();
+}
+void Model::rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
+                                     spot_light &light) {
+  for (auto obj : clip_objects) {
+    obj->rasterization_shadow_map(mvp, light);
+  }
+  clip_objects.clear();
+}
+void Model::clip(const Eigen::Matrix<float, 4, 4> &mvp,
+                 std::vector<Object *> &objects) {
+  // TODO:上锁
+  objects.push_back(this);
+  for (auto obj : this->objects) {
+    obj->clip(mvp, this->clip_objects);
+  }
+}
+void Model::clip(const Eigen::Matrix<float, 4, 4> &mvp) {
+  for (auto obj : this->objects) {
+    obj->clip(mvp, this->clip_objects);
+  }
 }

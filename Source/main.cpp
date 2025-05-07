@@ -35,7 +35,7 @@ void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
       const Vertex &v0 = vertices[face.mIndices[0]];
       const Vertex &v1 = vertices[face.mIndices[1]];
       const Vertex &v2 = vertices[face.mIndices[2]];
-      model.objects.push_back(new Triangle(v0, v1, v2));
+      model.add(new Triangle(v0, v1, v2));
     }
   }
 }
@@ -48,7 +48,7 @@ void processNode(aiNode *node, const aiScene *scene, Model &model) {
     processNode(node->mChildren[i], scene, model);
   }
 }
-Eigen::Vector3f phong_shader(Vertex &point, const Scene &scene,
+Eigen::Vector3f phong_shader(Vertex_rasterization &point, const Scene &scene,
                              const Model &model, const Eigen::Vector3f &tangent,
                              const Eigen::Vector3f &binormal) {
   Eigen::Vector3f Ks{0.8f, 0.8f, 0.8f};
@@ -63,42 +63,43 @@ Eigen::Vector3f phong_shader(Vertex &point, const Scene &scene,
       continue;
     }
     Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
-    Eigen::Vector3f light_dir = light->pos - point.pos;
+    Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
     Eigen::Vector3f half_dir = (light_dir - eye_dir).normalized();
     Eigen::Vector3f diffuse =
-        Kd.cwiseProduct(light->intensity / light_distance_square *
+        Kd.cwiseProduct(light->get_intensity() / light_distance_square *
                         std::max(0.0f, point.normal.dot(light_dir)));
     Eigen::Vector3f specular =
-        Ks.cwiseProduct(light->intensity / light_distance_square *
+        Ks.cwiseProduct(light->get_intensity() / light_distance_square *
                         pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
     result_color += ambient + diffuse + specular;
   }
   return result_color;
 };
-Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
+Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
                                const Model &model,
                                const Eigen::Vector3f &tangent,
                                const Eigen::Vector3f &binormal) {
   Eigen::Vector3f Ks;
   Eigen::Vector3f Kd;
-  if (model.textures[Model::DIFFUSE_TEXTURE] == nullptr) {
+  if (model.get_texture(Model::DIFFUSE_TEXTURE) == nullptr) {
     Kd = point.color;
   } else {
-    Kd = model.textures[Model::DIFFUSE_TEXTURE]->get_color(
-        point.texture_coords.x(), point.texture_coords.y());
+    Kd = model.get_texture(Model::DIFFUSE_TEXTURE)
+             ->get_color(point.texture_coords.x(), point.texture_coords.y());
   }
-  if (model.textures[Model::SPECULAR_TEXTURE] == nullptr) {
+  if (model.get_texture(Model::SPECULAR_TEXTURE) == nullptr) {
     Ks = Eigen::Vector3f{0.8f, 0.8f, 0.8f};
   } else {
-    Ks = model.textures[Model::SPECULAR_TEXTURE]->get_color(
-        point.texture_coords.x(), point.texture_coords.y());
+    Ks = model.get_texture(Model::SPECULAR_TEXTURE)
+             ->get_color(point.texture_coords.x(), point.texture_coords.y());
   }
-  if (model.textures[Model::NORMAL_TEXTURE] != nullptr) {
+  if (model.get_texture(Model::NORMAL_TEXTURE) != nullptr) {
     Eigen::Vector3f TBN_normal =
-        (2.0f * model.textures[Model::NORMAL_TEXTURE]->get_color(
-                    point.texture_coords.x(), point.texture_coords.y()) -
+        (2.0f * model.get_texture(Model::NORMAL_TEXTURE)
+                    ->get_color(point.texture_coords.x(),
+                                point.texture_coords.y()) -
          Eigen::Vector3f{1.0f, 1.0f, 1.0f})
             .normalized();
     Eigen::Vector3f tangent_orthogonal =
@@ -115,9 +116,10 @@ Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
   Eigen::Vector3f Ka{0.005, 0.005, 0.005};
   Eigen::Vector3f ambient_intensity = {10, 10, 10};
   Eigen::Vector3f result_color{0.0f, 0.0f, 0.0f};
-  if (model.textures[Model::GLOW_TEXTURE] != nullptr) {
-    result_color = model.textures[Model::GLOW_TEXTURE]->get_color(
-        point.texture_coords.x(), point.texture_coords.y());
+  if (model.get_texture(Model::GLOW_TEXTURE) != nullptr) {
+    result_color =
+        model.get_texture(Model::GLOW_TEXTURE)
+            ->get_color(point.texture_coords.x(), point.texture_coords.y());
   }
   for (auto &&light : scene.lights) {
     Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
@@ -126,15 +128,15 @@ Eigen::Vector3f texture_shader(Vertex &point, const Scene &scene,
       continue;
     }
     Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
-    Eigen::Vector3f light_dir = light->pos - point.pos;
+    Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
     Eigen::Vector3f half_dir = (light_dir - eye_dir).normalized();
     Eigen::Vector3f diffuse =
-        Kd.cwiseProduct(light->intensity / light_distance_square *
+        Kd.cwiseProduct(light->get_intensity() / light_distance_square *
                         std::max(0.0f, point.normal.dot(light_dir)));
     Eigen::Vector3f specular =
-        Ks.cwiseProduct(light->intensity / light_distance_square *
+        Ks.cwiseProduct(light->get_intensity() / light_distance_square *
                         pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
     result_color = result_color + ambient + diffuse + specular;
   }
@@ -157,19 +159,19 @@ int main() {
 
   std::shared_ptr<Texture> diffuse_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  model->set_diffuse_texture(diffuse_texture);
+  model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
 
   std::shared_ptr<Texture> specular_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  model->set_specular_texture(specular_texture);
+  model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
 
   std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
       "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  model->set_normal_texture(normal_texture);
+  model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
 
   std::shared_ptr<Texture> glow_texture =
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  model->set_glow_texture(glow_texture);
+  model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
   Scene my_scene = Scene(1024, 1024);
   model->set_scale(2.5f);
@@ -184,11 +186,12 @@ int main() {
   // light *l2 = new light{{-20, 20, 0}, {500, 500, 500}};
   spot_light *l1 = new spot_light;
   // spot_light *l2 = new spot_light;
-  l1->pos = Eigen::Vector3f{20, 20, 20};
-  l1->intensity = Eigen::Vector3f{1000, 1000, 1000};
-  l1->light_dir = (model->pos - l1->pos).normalized();
+  l1->set_pos({20, 20, 20});
+  l1->set_intensity({1000, 1000, 1000});
+  l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
   // l2->pos = Eigen::Vector3f{-20, 20, 0};
   // l2->intensity = Eigen::Vector3f{500, 500, 500};
+  // l2->light_dir = (model->pos - l2->pos).normalized();
 
   my_scene.lights.push_back(l1);
   // my_scene.lights.push_back(l2);
