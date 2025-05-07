@@ -1,7 +1,7 @@
 render-engine-rs
 ---
 
-A hybrid rendering library implementing both rasterization and ray-tracing techniques, with a demonstration application featuring dynamic camera control and model visualization.
+A hybrid rendering library implementing both rasterization and techniques, with a demonstration application featuring dynamic camera control and model visualization.
 
 ## Features
 ### Core Library (`render-lib`)
@@ -9,10 +9,6 @@ A hybrid rendering library implementing both rasterization and ray-tracing techn
   - Triangle-based rendering
   - Z-buffer depth testing
   - Basic texture mapping
-- **Ray Tracing**
-  - BVH acceleration structure
-  - Physically Based Rendering (PBR) materials
-  - Monte Carlo path tracing
 - **Common Infrastructure**
   - Math library (vectors, matrices, transforms)
   - Scene graph implementation
@@ -20,7 +16,7 @@ A hybrid rendering library implementing both rasterization and ray-tracing techn
 
 ### Application (`render-app`)
 - 🎮 Interactive viewer with camera controls
-- 🧊 OBJ/GLTF model loading
+- 🧊 model loading
 
 ## Getting Started
 
@@ -37,7 +33,7 @@ cd render-engine-rs
 cargo build --workspace --release
 
 # Run the demo application
-cargo run -p render-app --release -- --model assets/models/cornell_box.obj
+cargo run -p render-app --release
 TODO
 ```
 
