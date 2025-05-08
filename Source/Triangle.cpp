@@ -1,5 +1,6 @@
-#include "Object.hpp"
-#include <Triangle.hpp>
+#include "Triangle.hpp"
+#include "Model.hpp"
+#include <iostream>
 #include <vector>
 
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
@@ -14,8 +15,7 @@ void Triangle::move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   }
 }
 
-void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
-                    std::vector<Object *> &objects) {
+void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) {
   std::vector<Triangle_rasterization> triangles{*this};
   triangles[0].vertexs[0].transform_pos =
       mvp * triangles[0].vertexs[0].pos.homogeneous();
@@ -29,13 +29,9 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
   clip_triangles<0, false>(triangles);
   clip_triangles<1, true>(triangles);
   clip_triangles<1, false>(triangles);
-  std::vector<Object *> sub_objects(triangles.size());
-  for (int i = 0; i != triangles.size(); ++i) {
-    sub_objects[i] = new Triangle_rasterization(triangles[i]);
-  }
   // TODO: 上锁
-  for (auto obj : sub_objects) {
-    objects.push_back(obj);
+  for (auto &&obj : triangles) {
+    parent.clip_triangles.push_back(obj);
   }
 }
 
@@ -48,6 +44,18 @@ void Triangle_rasterization::move(
     v.normal = new_normal;
   }
 }
+
+void Triangle_rasterization::rasterization(
+    const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene, const Model &model) {
+  rasterization_block(mvp, scene, model, 0, 0, scene.width, scene.height);
+}
+
+void Triangle_rasterization::rasterization_shadow_map(
+    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light) {
+  rasterization_shadow_map_block(mvp, light, 0, 0, light.zbuffer_width,
+                                 light.zbuffer_height);
+}
+
 Triangle_rasterization::Triangle_rasterization(
     const Triangle &normal_triangle) {
   vertexs[0] = {normal_triangle.vertexs[0].pos,
@@ -72,34 +80,12 @@ Triangle_rasterization::Triangle_rasterization(const Vertex_rasterization &v0,
                                                const Vertex_rasterization &v2)
     : vertexs{v0, v1, v2} {}
 
-void Triangle_rasterization::rasterization(
-    const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene, const Model &model) {
-  vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
-
-  vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
-
-  vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
-
-  vertexs[0].transform_pos.x() =
-      (vertexs[0].transform_pos.x() + 1) * 0.5f * scene.width;
-  vertexs[0].transform_pos.y() =
-      (vertexs[0].transform_pos.y() + 1) * 0.5f * scene.height;
-
-  vertexs[1].transform_pos.x() =
-      (vertexs[1].transform_pos.x() + 1) * 0.5f * scene.width;
-  vertexs[1].transform_pos.y() =
-      (vertexs[1].transform_pos.y() + 1) * 0.5f * scene.height;
-
-  vertexs[2].transform_pos.x() =
-      (vertexs[2].transform_pos.x() + 1) * 0.5f * scene.width;
-  vertexs[2].transform_pos.y() =
-      (vertexs[2].transform_pos.y() + 1) * 0.5f * scene.height;
+void Triangle_rasterization::rasterization_block(
+    const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene, const Model &model,
+    int start_row, int start_col, int block_row, int block_col) {
+  if (block_row <= 0 || block_col <= 0) {
+    return;
+  }
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -118,6 +104,10 @@ void Triangle_rasterization::rasterization(
   if (box_right >= scene.width) {
     box_right = scene.width - 1;
   }
+  box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
+  box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
+  box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
+  box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
   Eigen::Vector3f edge1 = vertexs[1].pos - vertexs[0].pos,
                   edge2 = vertexs[2].pos - vertexs[0].pos;
   Eigen::Vector2f uv_edge1 =
@@ -170,37 +160,14 @@ void Triangle_rasterization::rasterization(
       }
     }
   }
-  delete this;
 }
 
-void Triangle_rasterization::rasterization_shadow_map(
-    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light) {
-  vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
-
-  vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
-
-  vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
-
-  vertexs[0].transform_pos.x() =
-      (vertexs[0].transform_pos.x() + 1) * 0.5f * light.zbuffer_width;
-  vertexs[0].transform_pos.y() =
-      (vertexs[0].transform_pos.y() + 1) * 0.5f * light.zbuffer_height;
-
-  vertexs[1].transform_pos.x() =
-      (vertexs[1].transform_pos.x() + 1) * 0.5f * light.zbuffer_width;
-  vertexs[1].transform_pos.y() =
-      (vertexs[1].transform_pos.y() + 1) * 0.5f * light.zbuffer_height;
-
-  vertexs[2].transform_pos.x() =
-      (vertexs[2].transform_pos.x() + 1) * 0.5f * light.zbuffer_width;
-  vertexs[2].transform_pos.y() =
-      (vertexs[2].transform_pos.y() + 1) * 0.5f * light.zbuffer_height;
+void Triangle_rasterization::rasterization_shadow_map_block(
+    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
+    int start_col, int block_row, int block_col) {
+  if (block_row <= 0 || block_col <= 0) {
+    return;
+  }
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -213,12 +180,16 @@ void Triangle_rasterization::rasterization_shadow_map(
   int box_top = std::max(
       vertexs[0].transform_pos.y(),
       std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  if (box_top >= light.zbuffer_height) {
-    box_top = light.zbuffer_height - 1;
-  }
-  if (box_right >= light.zbuffer_width) {
-    box_right = light.zbuffer_width - 1;
-  }
+  // if (box_top >= light.zbuffer_height) {
+  //   box_top = light.zbuffer_height - 1;
+  // }
+  // if (box_right >= light.zbuffer_width) {
+  //   box_right = light.zbuffer_width - 1;
+  // }
+  box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
+  box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
+  box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
+  box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
   for (int y = box_bottom; y <= box_top; ++y) {
     for (int x = box_left; x <= box_right; ++x) {
       auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
@@ -239,11 +210,37 @@ void Triangle_rasterization::rasterization_shadow_map(
       }
     }
   }
-  delete this;
 }
+void Triangle_rasterization::to_NDC(int width, int height) {
+  vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
+  vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
+  vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
 
+  vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
+  vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
+  vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
+
+  vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
+  vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
+  vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
+
+  vertexs[0].transform_pos.x() =
+      (vertexs[0].transform_pos.x() + 1) * 0.5f * width;
+  vertexs[0].transform_pos.y() =
+      (vertexs[0].transform_pos.y() + 1) * 0.5f * height;
+
+  vertexs[1].transform_pos.x() =
+      (vertexs[1].transform_pos.x() + 1) * 0.5f * width;
+  vertexs[1].transform_pos.y() =
+      (vertexs[1].transform_pos.y() + 1) * 0.5f * height;
+
+  vertexs[2].transform_pos.x() =
+      (vertexs[2].transform_pos.x() + 1) * 0.5f * width;
+  vertexs[2].transform_pos.y() =
+      (vertexs[2].transform_pos.y() + 1) * 0.5f * height;
+}
 void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
-                                  std::vector<Object *> &objects) {
+                                  Model &parent) {
   std::vector<Triangle_rasterization> triangles{*this};
   triangles[0].vertexs[0].transform_pos =
       mvp * triangles[0].vertexs[0].pos.homogeneous();
@@ -257,13 +254,9 @@ void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
   clip_triangles<0, false>(triangles);
   clip_triangles<1, true>(triangles);
   clip_triangles<1, false>(triangles);
-  std::vector<Object *> sub_objects(triangles.size());
-  for (int i = 0; i != triangles.size(); ++i) {
-    sub_objects[i] = new Triangle_rasterization(triangles[i]);
-  }
   // TODO: 上锁
-  for (auto obj : sub_objects) {
-    objects.push_back(obj);
+  for (auto obj : triangles) {
+    parent.clip_triangles.push_back(obj);
   }
 }
 

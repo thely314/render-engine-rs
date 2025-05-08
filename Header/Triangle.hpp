@@ -2,7 +2,6 @@
 #include "Eigen/Core"
 #include "Object.hpp"
 #include "Scene.hpp"
-#include "Texture.hpp"
 #include "light.hpp"
 #include <tuple>
 #include <vector>
@@ -45,8 +44,14 @@ private:
                      const Model &model) override {};
   void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
                                 spot_light &light) override {};
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-            std::vector<Object *> &objects) override;
+  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                           const Model &model, int start_row, int start_col,
+                           int block_row, int block_col) override {}
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      spot_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override {}
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
 };
 
 struct Vertex_rasterization {
@@ -96,8 +101,15 @@ private:
                      const Model &model) override;
   void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
                                 spot_light &light) override;
-  virtual void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-                    std::vector<Object *> &objects) override;
+  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                           const Model &model, int start_row, int start_col,
+                           int block_row, int block_col) override;
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      spot_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override;
+  void to_NDC(int width, int height);
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
   template <int N, bool isLess>
   friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,

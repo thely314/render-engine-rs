@@ -35,7 +35,7 @@ void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
       const Vertex &v0 = vertices[face.mIndices[0]];
       const Vertex &v1 = vertices[face.mIndices[1]];
       const Vertex &v2 = vertices[face.mIndices[2]];
-      model.add(new Triangle(v0, v1, v2));
+      model.add(Triangle(v0, v1, v2));
     }
   }
 }

@@ -3,6 +3,7 @@
 #include "Object.hpp"
 #include "Scene.hpp"
 #include "Texture.hpp"
+#include "Triangle.hpp"
 #include "light.hpp"
 #include <Triangle.hpp>
 #include <array>
@@ -32,7 +33,8 @@ public:
   void set_texture(const std::shared_ptr<Texture> &texture, TEXTURES id);
   std::shared_ptr<Texture> get_texture(TEXTURES id) const;
   void move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
-  void add(Object *obj);
+  void add(std::shared_ptr<Model> &obj);
+  void add(const Triangle &obj);
   ~Model();
 
 private:
@@ -40,11 +42,19 @@ private:
                      const Model &model) override;
   void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
                                 spot_light &light) override;
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-            std::vector<Object *> &objects) override;
+  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
+                           const Model &model, int start_row, int start_col,
+                           int block_row, int block_col) override;
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      spot_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override;
+  void to_NDC(int width, int height);
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
   void clip(const Eigen::Matrix<float, 4, 4> &mvp);
-  std::vector<Object *> objects;
-  std::vector<Object *> clip_objects;
+  std::vector<std::shared_ptr<Model>> sub_models;
+  std::vector<Triangle> triangles;
+  std::vector<Triangle_rasterization> clip_triangles;
   Eigen::Vector3f pos = Eigen::Vector3f{0.0f, 0.0f, 0.0f};
   float scale = 1.0;
   std::array<std::shared_ptr<Texture>, TEXTURE_NUM> textures{};

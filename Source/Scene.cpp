@@ -1,7 +1,12 @@
 #include "Eigen/Core"
+#include "global.hpp"
 #include <Scene.hpp>
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <iostream>
+#include <thread>
+#include <vector>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>
@@ -21,9 +26,6 @@ void Scene::start_render() {
                              projection =
                                  get_projection_matrix(45, 1.0f, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
-  // Eigen::Matrix<float, 3, 3> normal_mvp =
-  //     view.block<3, 3>(0, 0).inverse().transpose() *
-  //     model.block<3, 3>(0, 0).inverse().transpose();
   for (auto light : lights) {
     light->look_at(*this);
   }
@@ -31,7 +33,27 @@ void Scene::start_render() {
     obj->clip(mvp);
   }
   for (auto obj : objects) {
-    obj->rasterization(mvp, *this, *obj);
+    obj->to_NDC(width, height);
+  }
+  int thread_num = std::min(width, maximum_thread_num);
+  int thread_render_row_num = ceil(width * 1.0 / maximum_thread_num);
+  std::vector<std::thread> threads;
+  auto render_lambda = [](Scene &scene, const Eigen::Matrix<float, 4, 4> &mvp,
+                          int start_row, int block_row) {
+    for (auto obj : scene.objects) {
+      obj->rasterization_block(mvp, scene, *obj, start_row, 0, block_row,
+                               scene.width);
+    }
+  };
+  for (int i = 0; i < thread_num - 1; ++i) {
+    threads.emplace_back(render_lambda, std::ref(*this), std::ref(mvp),
+                         thread_render_row_num * i, thread_render_row_num);
+  }
+  threads.emplace_back(render_lambda, std::ref(*this), std::ref(mvp),
+                       thread_render_row_num * (thread_num - 1),
+                       height - thread_render_row_num * (thread_num - 1));
+  for (auto &&thread : threads) {
+    thread.join();
   }
 }
 void Scene::add_model(Model *model) { objects.push_back(model); }

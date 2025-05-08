@@ -1,5 +1,7 @@
 #include "Model.hpp"
 #include "Texture.hpp"
+#include "Triangle.hpp"
+#include <iostream>
 #include <memory>
 
 void Model::set_pos(const Eigen::Vector3f &pos) {
@@ -8,8 +10,11 @@ void Model::set_pos(const Eigen::Vector3f &pos) {
   Eigen::Matrix<float, 4, 4> modeling_matrix;
   modeling_matrix << 1.0f, 0.0f, 0.0f, movement.x(), 0.0f, 1.0f, 0.0f,
       movement.y(), 0.0f, 0.0f, 1.0f, movement.z(), 0.0f, 0.0f, 0.0f, 1.0f;
-  for (auto obj : objects) {
+  for (auto &&obj : sub_models) {
     obj->move(modeling_matrix);
+  }
+  for (auto &&obj : triangles) {
+    obj.move(modeling_matrix);
   }
 }
 
@@ -21,8 +26,11 @@ void Model::set_scale(float rate) {
   Eigen::Matrix<float, 4, 4> scale_matrix;
   scale_matrix << scale_rate, 0.0f, 0.0f, 0.0f, 0.0f, scale_rate, 0.0f, 0.0f,
       0.0f, 0.0f, scale_rate, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f;
-  for (auto obj : objects) {
+  for (auto &&obj : sub_models) {
     obj->move(scale_matrix);
+  }
+  for (auto &&obj : triangles) {
+    obj.move(scale_matrix);
   }
 }
 
@@ -38,43 +46,88 @@ std::shared_ptr<Texture> Model::get_texture(Model::TEXTURES id) const {
 }
 
 void Model::move(const Eigen::Matrix<float, 4, 4> &matrix) {
-  for (auto obj : objects) {
+  for (auto &&obj : sub_models) {
     obj->move(matrix);
   }
-}
-
-void Model::add(Object *obj) { objects.push_back(obj); }
-
-Model::~Model() {
-  for (auto obj : objects) {
-    delete obj;
+  for (auto &&obj : triangles) {
+    obj.move(matrix);
   }
 }
+
+void Model::add(std::shared_ptr<Model> &obj) { sub_models.push_back(obj); }
+void Model::add(const Triangle &obj) { triangles.push_back(obj); }
+
+Model::~Model() {}
 
 void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
                           const Model &model) {
-  for (auto obj : clip_objects) {
+  int i = 0;
+  for (auto &&obj : sub_models) {
     obj->rasterization(mvp, scene, *this);
   }
-  clip_objects.clear();
+  for (auto &&obj : clip_triangles) {
+    obj.rasterization(mvp, scene, *this);
+  }
 }
 void Model::rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
                                      spot_light &light) {
-  for (auto obj : clip_objects) {
+  for (auto &&obj : sub_models) {
     obj->rasterization_shadow_map(mvp, light);
   }
-  clip_objects.clear();
+  for (auto &&obj : clip_triangles) {
+    obj.rasterization_shadow_map(mvp, light);
+  }
 }
-void Model::clip(const Eigen::Matrix<float, 4, 4> &mvp,
-                 std::vector<Object *> &objects) {
+void Model::rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                Scene &scene, const Model &model, int start_row,
+                                int start_col, int block_row, int block_col) {
+  for (auto &&obj : sub_models) {
+    obj->rasterization_block(mvp, scene, *this, start_row, start_col, block_row,
+                             block_col);
+  }
+  for (auto &&obj : clip_triangles) {
+    obj.rasterization_block(mvp, scene, *this, start_row, start_col, block_row,
+                            block_col);
+  }
+}
+void Model::rasterization_shadow_map_block(
+    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
+    int start_col, int block_row, int block_col) {
+  for (auto &&obj : sub_models) {
+    obj->rasterization_shadow_map_block(mvp, light, start_row, start_col,
+                                        block_row, block_col);
+  }
+  for (auto &&obj : clip_triangles) {
+    obj.rasterization_shadow_map_block(mvp, light, start_row, start_col,
+                                       block_row, block_col);
+  }
+}
+
+void Model::to_NDC(int width, int height) {
+  for (auto &&obj : sub_models) {
+    obj->to_NDC(width, height);
+  }
+  for (auto &&obj : clip_triangles) {
+    obj.to_NDC(width, height);
+  }
+}
+
+void Model::clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) {
   // TODO:上锁
-  objects.push_back(this);
-  for (auto obj : this->objects) {
-    obj->clip(mvp, this->clip_objects);
+  clip_triangles.clear();
+  for (auto &&obj : sub_models) {
+    obj->clip(mvp, *this);
+  }
+  for (auto &&obj : triangles) {
+    obj.clip(mvp, *this);
   }
 }
 void Model::clip(const Eigen::Matrix<float, 4, 4> &mvp) {
-  for (auto obj : this->objects) {
-    obj->clip(mvp, this->clip_objects);
+  clip_triangles.clear();
+  for (auto &&obj : sub_models) {
+    obj->clip(mvp, *this);
+  }
+  for (auto &&obj : triangles) {
+    obj.clip(mvp, *this);
   }
 }

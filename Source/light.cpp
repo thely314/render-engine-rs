@@ -4,6 +4,8 @@
 #include "global.hpp"
 #include <cmath>
 #include <cstdlib>
+#include <functional>
+#include <thread>
 light::light() : pos(0.0f, 0.0f, 0.0f), intensity(0.0f, 0.0f, 0.0f) {}
 light::light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity)
     : pos(pos), intensity(intensity) {}
@@ -78,7 +80,30 @@ void spot_light::look_at(const Scene &scene) {
     obj->clip(mvp);
   }
   for (auto obj : scene.objects) {
-    obj->rasterization_shadow_map(mvp, *this);
+    obj->to_NDC(zbuffer_width, zbuffer_height);
+  }
+  int thread_num = std::min(zbuffer_width, maximum_thread_num);
+  int thread_render_row_num = ceil(zbuffer_width * 1.0 / maximum_thread_num);
+  std::vector<std::thread> threads;
+  auto render_lambda = [](const Scene &scene, spot_light &light,
+                          const Eigen::Matrix<float, 4, 4> &mvp, int start_row,
+                          int block_row) {
+    for (auto obj : scene.objects) {
+      obj->rasterization_shadow_map_block(mvp, light, start_row, 0, block_row,
+                                          light.zbuffer_width);
+    }
+  };
+  for (int i = 0; i < thread_num - 1; ++i) {
+    threads.emplace_back(render_lambda, std::ref(scene), std::ref(*this),
+                         std::ref(this->mvp), thread_render_row_num * i,
+                         thread_render_row_num);
+  }
+  threads.emplace_back(
+      render_lambda, std::ref(scene), std::ref(*this), std::ref(this->mvp),
+      thread_render_row_num * (thread_num - 1),
+      zbuffer_height - thread_render_row_num * (thread_num - 1));
+  for (auto &&thread : threads) {
+    thread.join();
   }
 }
 

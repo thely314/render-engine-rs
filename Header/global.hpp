@@ -2,9 +2,9 @@
 #include "Eigen/Core"
 #include <Eigen/Dense>
 #include <cmath>
-#include <iostream>
 
 constexpr float EPSILON = 1e-4;
+constexpr int maximum_thread_num = 8;
 inline Eigen::Matrix<float, 4, 4>
 get_model_matrix(const Eigen::Vector3f &axis, float angle,
                  const Eigen::Vector3f &move) {
