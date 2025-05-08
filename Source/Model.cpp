@@ -1,6 +1,7 @@
 #include "Model.hpp"
 #include "Texture.hpp"
 #include "Triangle.hpp"
+#include <algorithm>
 #include <iostream>
 #include <memory>
 
@@ -54,7 +55,9 @@ void Model::move(const Eigen::Matrix<float, 4, 4> &matrix) {
   }
 }
 
-void Model::add(std::shared_ptr<Model> &obj) { sub_models.push_back(obj); }
+void Model::add(const std::shared_ptr<Model> &obj) {
+  sub_models.push_back(obj);
+}
 void Model::add(const Triangle &obj) { triangles.push_back(obj); }
 
 Model::~Model() {}

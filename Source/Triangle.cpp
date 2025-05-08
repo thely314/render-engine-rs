@@ -1,4 +1,5 @@
 #include "Triangle.hpp"
+#include "Eigen/Core"
 #include "Model.hpp"
 #include <iostream>
 #include <vector>
@@ -86,6 +87,14 @@ void Triangle_rasterization::rasterization_block(
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
+  Eigen::Vector3f points[3];
+  for (int i = 0; i != 3; ++i) {
+    points[i] = {vertexs[i].transform_pos.x(), vertexs[i].transform_pos.y(),
+                 0.0f};
+  }
+  if ((points[1] - points[0]).cross(points[2] - points[1]).z() < 0) {
+    return;
+  }
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -98,12 +107,6 @@ void Triangle_rasterization::rasterization_block(
   int box_top = std::max(
       vertexs[0].transform_pos.y(),
       std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  if (box_top >= scene.height) {
-    box_top = scene.height - 1;
-  }
-  if (box_right >= scene.width) {
-    box_right = scene.width - 1;
-  }
   box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
   box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
   box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
@@ -133,9 +136,9 @@ void Triangle_rasterization::rasterization_block(
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
         float point_transform_pos_z =
-            w_inter * (alpha * vertexs[0].transform_pos.z() +
-                       beta * vertexs[1].transform_pos.z() +
-                       gamma * vertexs[2].transform_pos.z());
+            -w_inter * (alpha * vertexs[0].transform_pos.z() +
+                        beta * vertexs[1].transform_pos.z() +
+                        gamma * vertexs[2].transform_pos.z());
         if (point_transform_pos_z > scene.z_buffer[scene.get_index(x, y)]) {
           scene.z_buffer[scene.get_index(x, y)] = point_transform_pos_z;
           Eigen::Vector3f point_pos =
@@ -168,6 +171,14 @@ void Triangle_rasterization::rasterization_shadow_map_block(
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
+  Eigen::Vector3f points[3];
+  for (int i = 0; i != 3; ++i) {
+    points[i] = {vertexs[i].transform_pos.x(), vertexs[i].transform_pos.y(),
+                 0.0f};
+  }
+  if ((points[1] - points[0]).cross(points[2] - points[1]).z() < 0) {
+    return;
+  }
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -180,12 +191,6 @@ void Triangle_rasterization::rasterization_shadow_map_block(
   int box_top = std::max(
       vertexs[0].transform_pos.y(),
       std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  // if (box_top >= light.zbuffer_height) {
-  //   box_top = light.zbuffer_height - 1;
-  // }
-  // if (box_right >= light.zbuffer_width) {
-  //   box_right = light.zbuffer_width - 1;
-  // }
   box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
   box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
   box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
@@ -201,9 +206,9 @@ void Triangle_rasterization::rasterization_shadow_map_block(
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
         float point_transform_pos_z =
-            w_inter * (alpha * vertexs[0].transform_pos.z() +
-                       beta * vertexs[1].transform_pos.z() +
-                       gamma * vertexs[2].transform_pos.z());
+            -w_inter * (alpha * vertexs[0].transform_pos.z() +
+                        beta * vertexs[1].transform_pos.z() +
+                        gamma * vertexs[2].transform_pos.z());
         if (point_transform_pos_z > light.z_buffer[light.get_index(x, y)]) {
           light.z_buffer[light.get_index(x, y)] = point_transform_pos_z;
         }
@@ -214,26 +219,18 @@ void Triangle_rasterization::rasterization_shadow_map_block(
 void Triangle_rasterization::to_NDC(int width, int height) {
   vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
   vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
-
   vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
   vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
-
   vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
   vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
-
   vertexs[0].transform_pos.x() =
       (vertexs[0].transform_pos.x() + 1) * 0.5f * width;
   vertexs[0].transform_pos.y() =
       (vertexs[0].transform_pos.y() + 1) * 0.5f * height;
-
   vertexs[1].transform_pos.x() =
       (vertexs[1].transform_pos.x() + 1) * 0.5f * width;
   vertexs[1].transform_pos.y() =
       (vertexs[1].transform_pos.y() + 1) * 0.5f * height;
-
   vertexs[2].transform_pos.x() =
       (vertexs[2].transform_pos.x() + 1) * 0.5f * width;
   vertexs[2].transform_pos.y() =

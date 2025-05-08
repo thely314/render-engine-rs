@@ -1,4 +1,5 @@
 #include "Eigen/Core"
+#include "Model.hpp"
 #include "global.hpp"
 #include <Scene.hpp>
 #include <algorithm>
@@ -17,6 +18,7 @@ Scene::Scene(int width, int height)
   frame_buffer.resize(width * height);
   z_buffer.resize(width * height, -INFINITY);
 }
+
 void Scene::start_render() {
   std::fill(frame_buffer.begin(), frame_buffer.end(),
             Eigen::Vector3f{0.0f, 0.0f, 0.0f});
@@ -56,7 +58,15 @@ void Scene::start_render() {
     thread.join();
   }
 }
-void Scene::add_model(Model *model) { objects.push_back(model); }
+
+void Scene::add_model(const std::shared_ptr<Model> &model) {
+  objects.push_back(model);
+}
+
+void Scene::add_light(const std::shared_ptr<light> &light) {
+  lights.push_back(light);
+}
+
 void Scene::save_to_file(std::string filename) {
   std::vector<unsigned char> data(width * height * 3);
   for (int y = 0; y != height; ++y) {
@@ -71,13 +81,47 @@ void Scene::save_to_file(std::string filename) {
   }
   stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
 }
-Scene::~Scene() {}
+
 int Scene::get_index(int x, int y) { return width * (height - y - 1) + x; }
+
 void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
   this->eye_pos = eye_pos;
 }
+
 void Scene::set_view_dir(const Eigen::Vector3f &view_dir) {
-  this->view_dir = view_dir;
+  this->view_dir = view_dir.normalized();
 }
+
 void Scene::set_zNear(float zNear) { this->zNear = zNear; }
+
 void Scene::set_zFar(float zFar) { this->zFar = zFar; }
+
+void Scene::set_width(int width) { this->width = width; }
+
+void Scene::set_height(int height) { this->height = height; }
+
+void Scene::set_shader(
+    const std::function<Eigen::Vector3f(Vertex_rasterization &, const Scene &,
+                                        const Model &, const Eigen::Vector3f &,
+                                        const Eigen::Vector3f &)> &shader) {
+  this->shader = shader;
+}
+
+Eigen::Vector3f Scene::get_eye_pos() const { return eye_pos; }
+
+Eigen::Vector3f Scene::get_view_dir() const { return view_dir; }
+
+float Scene::get_zNear() const { return zNear; }
+
+float Scene::get_zFar() const { return zFar; }
+
+int Scene::get_width() const { return width; }
+
+int Scene::get_height() const { return height; }
+
+std::function<Eigen::Vector3f(Vertex_rasterization &, const Scene &,
+                              const Model &, const Eigen::Vector3f &,
+                              const Eigen::Vector3f &)>
+Scene::get_shader() const {
+  return shader;
+}

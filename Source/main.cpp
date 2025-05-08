@@ -3,10 +3,14 @@
 #include "Scene.hpp"
 #include "Triangle.hpp"
 #include "global.hpp"
+#include "light.hpp"
+#include <algorithm>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <format>
+#include <iostream>
+#include <memory>
 void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
   std::vector<Vertex> vertices;
   std::vector<int> indices;
@@ -62,7 +66,7 @@ Eigen::Vector3f phong_shader(Vertex_rasterization &point, const Scene &scene,
       result_color += ambient;
       continue;
     }
-    Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
+    Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
     Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
@@ -127,7 +131,7 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
       result_color += ambient;
       continue;
     }
-    Eigen::Vector3f eye_dir = (point.pos - scene.eye_pos).normalized();
+    Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
     Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
     light_dir = light_dir.normalized();
@@ -153,7 +157,7 @@ int main() {
     fprintf(stderr, "%s\n", importer.GetErrorString());
     return 1;
   }
-  Model *model = new Model();
+  auto model = std::make_shared<Model>();
 
   processNode(scene->mRootNode, scene, *model);
 
@@ -173,37 +177,47 @@ int main() {
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
   model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  Scene my_scene = Scene(1024, 1024);
   model->set_scale(2.5f);
-  // model->move(get_model_matrix({0, 1, 0}, 300, {0, -1, 0}));
+  Vertex floor_vertex[4];
+  floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
+                           {0.0f, 1.0f, 0.0f},
+                           {0.5f, 0.5f, 0.5f},
+                           {0.0f, 0.0f}};
+  floor_vertex[1] = Vertex{{10.0f, -2.45f, 10.0f},
+                           {0.0f, 1.0f, 0.0f},
+                           {0.5f, 0.5f, 0.5f},
+                           {0.0f, 0.0f}};
+  floor_vertex[2] = Vertex{{10.0f, -2.45f, -10.0f},
+                           {0.0f, 1.0f, 0.0f},
+                           {0.5f, 0.5f, 0.5f},
+                           {0.0f, 0.0f}};
+  floor_vertex[3] = Vertex{{-10.0f, -2.45f, 10.0f},
+                           {0.0f, 1.0f, 0.0f},
+                           {0.5f, 0.5f, 0.5f},
+                           {0.0f, 0.0f}};
+  auto floor = std::make_shared<Model>();
+  floor->add(Triangle(floor_vertex[0], floor_vertex[1], floor_vertex[2]));
+  floor->add(Triangle(floor_vertex[0], floor_vertex[3], floor_vertex[1]));
+  Scene my_scene = Scene(1024, 1024);
   my_scene.add_model(model);
-  // my_scene.set_eye_pos({0.0f, 0.0f, 10.0f});
+  my_scene.add_model(floor);
   my_scene.set_eye_pos({0.0f, 0.0f, 7.0f});
-  my_scene.set_view_dir({0, 0, -1});
+  my_scene.set_view_dir(
+      (model->get_pos() - my_scene.get_eye_pos()).normalized());
+  my_scene.set_view_dir({0.0f, 0.0f, -1.0f});
   my_scene.set_zNear(-0.1f);
-  my_scene.set_zFar(-50.0f);
-  // light *l1 = new light{{20, 20, 20}, {500, 500, 500}};
-  // light *l2 = new light{{-20, 20, 0}, {500, 500, 500}};
-  spot_light *l1 = new spot_light;
-  // spot_light *l2 = new spot_light;
+  my_scene.set_zFar(-1000.0f);
+  auto l1 = std::make_shared<spot_light>();
   l1->set_pos({20, 20, 20});
   l1->set_intensity({1000, 1000, 1000});
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  // l2->pos = Eigen::Vector3f{-20, 20, 0};
-  // l2->intensity = Eigen::Vector3f{500, 500, 500};
-  // l2->light_dir = (model->pos - l2->pos).normalized();
-
-  my_scene.lights.push_back(l1);
-  // my_scene.lights.push_back(l2);
-  my_scene.shader = texture_shader;
-  // my_scene.start_render();
-  // my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
-  delete model;
-  delete l1;
-  // delete l2;
+  my_scene.add_light(l1);
+  my_scene.set_shader(texture_shader);
+  my_scene.start_render();
+  my_scene.save_to_file("output.png");
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }

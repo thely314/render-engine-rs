@@ -33,7 +33,7 @@ public:
   void set_texture(const std::shared_ptr<Texture> &texture, TEXTURES id);
   std::shared_ptr<Texture> get_texture(TEXTURES id) const;
   void move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
-  void add(std::shared_ptr<Model> &obj);
+  void add(const std::shared_ptr<Model> &obj);
   void add(const Triangle &obj);
   ~Model();
 

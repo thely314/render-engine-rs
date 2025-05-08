@@ -4,7 +4,7 @@
 #include <cmath>
 
 constexpr float EPSILON = 1e-4;
-constexpr int maximum_thread_num = 8;
+constexpr int maximum_thread_num = 2;
 inline Eigen::Matrix<float, 4, 4>
 get_model_matrix(const Eigen::Vector3f &axis, float angle,
                  const Eigen::Vector3f &move) {

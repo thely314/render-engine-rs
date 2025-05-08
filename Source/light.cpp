@@ -1,7 +1,9 @@
 #include "light.hpp"
+#include "Eigen/Core"
 #include "Scene.hpp"
 #include "Triangle.hpp"
 #include "global.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
@@ -26,7 +28,7 @@ bool light::in_shadow(Vertex_rasterization &) { return false; }
 
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-100.0f), zbuffer_width(12800), zbuffer_height(12800),
+      zNear(-0.1f), zFar(-1000.0f), zbuffer_width(12800), zbuffer_height(12800),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
   z_buffer.resize(zbuffer_width * zbuffer_height, -INFINITY);
 }
@@ -120,12 +122,13 @@ bool spot_light::in_shadow(Vertex_rasterization &point) {
   }
   point.transform_pos.x() /= point.transform_pos.w();
   point.transform_pos.y() /= point.transform_pos.w();
-  point.transform_pos.z() /= point.transform_pos.w();
   point.transform_pos.x() =
       (point.transform_pos.x() + 1) * 0.5f * zbuffer_width;
   point.transform_pos.y() =
       (point.transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  if (point.transform_pos.z() + EPSILON >
+  Eigen::Vector3f light_dir = (pos - point.pos).normalized();
+  float cos_val = light_dir.dot(point.normal);
+  if (-point.transform_pos.z() + std::max(0.05f, 0.1f * (1.0f - cos_val)) >
       z_buffer[get_index(point.transform_pos.x(), point.transform_pos.y())]) {
     return false;
   }
