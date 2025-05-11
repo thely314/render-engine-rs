@@ -15,14 +15,14 @@
 Scene::Scene(int width, int height)
     : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, zNear(-0.1f),
       zFar(-1000.0f), width(width), height(height) {
-  frame_buffer.resize(width * height);
-  z_buffer.resize(width * height, -INFINITY);
+  frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
+  z_buffer.resize(width * height, INFINITY);
 }
 
 void Scene::start_render() {
   std::fill(frame_buffer.begin(), frame_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
-  std::fill(z_buffer.begin(), z_buffer.end(), -INFINITY);
+            Eigen::Vector3f{0.7f, 0.7f, 0.7f});
+  std::fill(z_buffer.begin(), z_buffer.end(), INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
                              projection =

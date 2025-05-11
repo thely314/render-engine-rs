@@ -1,9 +1,12 @@
 #include "Triangle.hpp"
 #include "Eigen/Core"
 #include "Model.hpp"
+#include "global.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <vector>
-
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 
@@ -136,10 +139,10 @@ void Triangle_rasterization::rasterization_block(
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
         float point_transform_pos_z =
-            -w_inter * (alpha * vertexs[0].transform_pos.z() +
-                        beta * vertexs[1].transform_pos.z() +
-                        gamma * vertexs[2].transform_pos.z());
-        if (point_transform_pos_z > scene.z_buffer[scene.get_index(x, y)]) {
+            w_inter * (alpha * vertexs[0].transform_pos.z() +
+                       beta * vertexs[1].transform_pos.z() +
+                       gamma * vertexs[2].transform_pos.z());
+        if (point_transform_pos_z < scene.z_buffer[scene.get_index(x, y)]) {
           scene.z_buffer[scene.get_index(x, y)] = point_transform_pos_z;
           Eigen::Vector3f point_pos =
               w_inter * (alpha * vertexs[0].pos + beta * vertexs[1].pos +
@@ -206,10 +209,10 @@ void Triangle_rasterization::rasterization_shadow_map_block(
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
         float point_transform_pos_z =
-            -w_inter * (alpha * vertexs[0].transform_pos.z() +
-                        beta * vertexs[1].transform_pos.z() +
-                        gamma * vertexs[2].transform_pos.z());
-        if (point_transform_pos_z > light.z_buffer[light.get_index(x, y)]) {
+            w_inter * (alpha * vertexs[0].transform_pos.z() +
+                       beta * vertexs[1].transform_pos.z() +
+                       gamma * vertexs[2].transform_pos.z());
+        if (point_transform_pos_z < light.z_buffer[light.get_index(x, y)]) {
           light.z_buffer[light.get_index(x, y)] = point_transform_pos_z;
         }
       }

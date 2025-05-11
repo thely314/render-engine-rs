@@ -19,7 +19,9 @@ public:
   Eigen::Vector3f get_intensity() const;
   void set_intensity(const Eigen::Vector3f &intensity);
   virtual void look_at(const Scene &);
-  virtual bool in_shadow(Vertex_rasterization &);
+  virtual bool in_shadow(Vertex_rasterization &point);
+  virtual float in_shadow_pcf(Vertex_rasterization &point);
+  virtual float in_shadow_pcss(Vertex_rasterization &point);
   virtual ~light() = default;
 
 protected:
@@ -55,11 +57,18 @@ private:
   float aspect_ratio;
   float zNear;
   float zFar;
+  float light_size;
+  float projection_scale;
+  float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;
   Eigen::Matrix<float, 4, 4> mvp;
+  Eigen::Matrix<float, 4, 4> mv;
+  Eigen::Matrix<float, 3, 3> normal_mv;
   std::vector<float> z_buffer;
   int get_index(int x, int y);
   void look_at(const Scene &) override;
-  bool in_shadow(Vertex_rasterization &) override;
+  bool in_shadow(Vertex_rasterization &point) override;
+  float in_shadow_pcf(Vertex_rasterization &point) override;
+  float in_shadow_pcss(Vertex_rasterization &point) override;
 };

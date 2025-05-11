@@ -9,7 +9,6 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <format>
-#include <iostream>
 #include <memory>
 void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
   std::vector<Vertex> vertices;
@@ -117,7 +116,7 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
     TBN << tangent_orthogonal, binormal_orthogonal, point.normal;
     point.normal = (TBN * TBN_normal).normalized();
   }
-  Eigen::Vector3f Ka{0.005, 0.005, 0.005};
+  Eigen::Vector3f Ka{0.005f, 0.005f, 0.005f};
   Eigen::Vector3f ambient_intensity = {10, 10, 10};
   Eigen::Vector3f result_color{0.0f, 0.0f, 0.0f};
   if (model.get_texture(Model::GLOW_TEXTURE) != nullptr) {
@@ -127,8 +126,9 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
   }
   for (auto &&light : scene.lights) {
     Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
-    if (light->in_shadow(point)) {
-      result_color += ambient;
+    float shadow_result = light->in_shadow_pcss(point);
+    // float shadow_result = !light->in_shadow(point);
+    if (shadow_result < EPSILON) {
       continue;
     }
     Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
@@ -142,7 +142,7 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
     Eigen::Vector3f specular =
         Ks.cwiseProduct(light->get_intensity() / light_distance_square *
                         pow(std::max(0.0f, point.normal.dot(half_dir)), 150));
-    result_color = result_color + ambient + diffuse + specular;
+    result_color += (ambient + diffuse + specular) * shadow_result;
   }
   return result_color;
 }
@@ -207,11 +207,17 @@ int main() {
   my_scene.set_view_dir({0.0f, 0.0f, -1.0f});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-1000.0f);
+  my_scene.set_width(1024);
+  my_scene.set_height(1024);
   auto l1 = std::make_shared<spot_light>();
-  l1->set_pos({20, 20, 20});
-  l1->set_intensity({1000, 1000, 1000});
+  l1->set_pos({10, 10, 10});
+  l1->set_intensity({250, 250, 250});
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
+  // auto l2 = std::make_shared<spot_light>(*l1);
+  // l2->set_pos({-20, 20, 20});
+  // l2->set_light_dir((model->get_pos() - l2->get_pos()).normalized());
   my_scene.add_light(l1);
+  // my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
   my_scene.start_render();
   my_scene.save_to_file("output.png");
