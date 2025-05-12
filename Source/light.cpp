@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <thread>
@@ -31,8 +32,8 @@ float light::in_shadow_pcf(Vertex_rasterization &point) { return 1.0f; }
 float light::in_shadow_pcss(Vertex_rasterization &point) { return 1.0f; }
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-1000.0f), light_size(5.0f), projection_scale(0.0f),
-      pixel_radius(0.0f), zbuffer_width(4096), zbuffer_height(4096),
+      zNear(-0.1f), zFar(-100.0f), light_size(5.0f), projection_scale(0.0f),
+      pixel_radius(0.0f), zbuffer_width(2048), zbuffer_height(2048),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
   z_buffer.resize(zbuffer_width * zbuffer_height, INFINITY);
 }
@@ -192,15 +193,15 @@ float spot_light::in_shadow_pcf(Vertex_rasterization &point) {
       0.01f + bias_scale * 1024.0f / zbuffer_height *
                   (1.0f - (pos - point.pos).normalized().dot(point.normal));
   constexpr int pcf_radius = 3;
-  for (int y = center_y - pcf_radius + 1; y != center_y + pcf_radius; ++y) {
-    if (y >= 0 && y < zbuffer_height) {
-      for (int x = center_x - pcf_radius + 1; x < center_x + pcf_radius; ++x) {
-        if (x >= 0 && x < zbuffer_width) {
+  for (int y = -pcf_radius; y <= pcf_radius; ++y) {
+    if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+        if (center_x + x >= 0 && center_x + x < zbuffer_width) {
           ++pcf_num;
-          if (point.transform_pos.z() - pcf_radius * bias <
-              z_buffer[get_index(x, y)]) {
+          if (point.transform_pos.z() - (pcf_radius + 1) * bias <
+              z_buffer[get_index(center_x + x, center_y + y)]) {
             ++unshadow_num;
-          };
+          }
         }
       }
     }
@@ -224,70 +225,59 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       (point.transform_pos.x() + 1) * 0.5f * zbuffer_width;
   point.transform_pos.y() =
       (point.transform_pos.y() + 1) * 0.5f * zbuffer_height;
+  int center_x = point.transform_pos.x(), center_y = point.transform_pos.y();
+  float point_projection_depth = point.transform_pos.z();
+  point.transform_pos = mv * point.pos.homogeneous();
   float bias =
       0.01f + bias_scale * 1024.0f / zbuffer_height *
                   (1.0f - (pos - point.pos).normalized().dot(point.normal));
   // float light_frustum_width = ;
   // find findblocker radius
-  int pcf_num = 0, unshadow_num = 0;
-  int center_x = point.transform_pos.x(), center_y = point.transform_pos.y();
-  int pcss_radius = 3;
+  constexpr int max_pcss_radius = 16, min_pcss_radius = 2;
+  float s = 1.0f - (point.transform_pos.z() - zNear) / (zFar - zNear);
+  int pcss_radius = min_pcss_radius + std::clamp(s, 0.0f, 1.0f) *
+                                          (max_pcss_radius - min_pcss_radius);
   // find blocker
   int block_num = 0;
   float block_depth = 0.0f;
-  for (int y = center_y - pcss_radius + 1; y != center_y + pcss_radius; ++y) {
-    if (y >= 0 && y < zbuffer_height) {
-      for (int x = center_x - pcss_radius + 1; x < center_x + pcss_radius;
-           ++x) {
-        if (x >= 0 && x < zbuffer_width) {
-          if (point.transform_pos.z() - pcss_radius * bias >
-              z_buffer[get_index(x, y)]) {
-            block_depth += z_buffer[get_index(x, y)];
+  for (int y = -pcss_radius; y <= pcss_radius; ++y) {
+    if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+      for (int x = -pcss_radius; x <= pcss_radius; ++x) {
+        if (center_x + x >= 0 && center_x + x < zbuffer_width) {
+          if (point_projection_depth + (pcss_radius + 1) * bias >
+              z_buffer[get_index(center_x + x, center_y + y)]) {
+            block_depth += z_buffer[get_index(center_x + x, center_y + y)];
             ++block_num;
           };
         }
       }
     }
   }
-  if (block_num == 0) {
-    return 1.0f;
-  } else if (block_num == (2 * pcss_radius - 1) * (2 * pcss_radius - 1)) {
-    return 0.0f;
-  }
+  auto projection_to_view = [this](float projection_depth) -> float {
+    return (projection_depth + 2 * zNear * zFar / (zNear - zFar)) *
+           ((zNear - zFar) / (zNear + zFar));
+  };
   block_depth /= block_num;
-  float penumbra = (point.transform_pos.z() - block_depth) /
-                   (block_depth + 2 * zNear * zFar / (zNear - zFar)) *
-                   light_size;
+  block_depth = projection_to_view(block_depth);
+  float penumbra =
+      (point.transform_pos.z() - block_depth) / block_depth * light_size;
   // pcf
+  // TODO: 把魔数16换成合理计算的参数
+  int pcf_num = 0, unshadow_num = 0;
   constexpr float to_radian = M_PI / 360.0f;
-  float light_frustum_width = 2.0f * zNear * tan(to_radian * fov);
-  float near_plane = zNear;
-  float light_size_uv = light_size / light_frustum_width;
-  // float penumbra_zNear =
-  //     penumbra * light_size_uv * near_plane /
-  //     (point.transform_pos.z() + 2 * zNear * zFar / (zNear - zFar));
-  float penumbra_zNear =
-      -penumbra * zNear /
-      (point.transform_pos.z() + 2 * zNear * zFar / (zNear - zFar)) *
-      zbuffer_height;
-  printf("%f %f\n", penumbra, penumbra_zNear);
-  int pcf_radius = 1.0 + roundf(penumbra_zNear);
-  // if (pcf_radius != 1)
-  //   printf("%d\n", pcf_radius);
-  // int pcf_radius = 1;
-  for (int y = center_y - pcf_radius + 1; y <= center_y + pcf_radius; ++y) {
-    if (y >= 0 && y < zbuffer_height) {
-      for (int x = center_x - pcf_radius + 1; x < center_x + pcf_radius; ++x) {
-        if (x >= 0 && x < zbuffer_width) {
+  int pcf_radius = std::max(1, (int)(penumbra * 16));
+  for (int y = -pcf_radius; y <= pcf_radius; ++y) {
+    if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+        if (center_x + x >= 0 && center_x + x < zbuffer_width) {
           ++pcf_num;
-          if (point.transform_pos.z() - pcf_radius * bias <
-              z_buffer[get_index(x, y)]) {
+          if (point_projection_depth - (pcf_radius + 1) * bias <
+              z_buffer[get_index(center_x + x, center_y + y)]) {
             ++unshadow_num;
-          };
+          }
         }
       }
     }
   }
-  // printf("END\n");
   return unshadow_num * 1.0f / pcf_num;
 }
