@@ -49,18 +49,13 @@ inline Eigen::Matrix<float, 4, 4>
 get_projection_matrix(const float fov, const float aspect_ratio,
                       const float zNear, const float zFar) {
   // zNear和zFar需要传入负值，且zNear>zFar
-  Eigen::Matrix<float, 4, 4> perspective,
-      move = Eigen::Matrix<float, 4, 4>::Identity(),
-      scale = Eigen::Matrix<float, 4, 4>::Identity();
-  perspective << zNear, 0.0f, 0.0f, 0.0f, 0.0f, zNear, 0.0f, 0.0f, 0.0f, 0.0f,
-      zNear + zFar, -zNear * zFar, 0.0f, 0.0f, 1.0f, 0.0f;
-  move(2, 3) = -0.5 * (zNear + zFar);
+  Eigen::Matrix<float, 4, 4> perspective;
   constexpr float to_radian = M_PI / 360.0f;
   float tan_val_div = 1.0f / tan(to_radian * fov);
-  scale(0, 0) = -tan_val_div / aspect_ratio / zNear;
-  scale(1, 1) = -tan_val_div / zNear;
-  scale(2, 2) = 2.0f / (zNear - zFar);
-  return scale * move * perspective;
+  perspective << -tan_val_div / aspect_ratio, 0.0f, 0.0f, 0.0f, 0.0f,
+      -tan_val_div, 0.0f, 0.0f, 0.0f, 0.0f, (zNear + zFar) / (zNear - zFar),
+      -2 * zNear * zFar / (zNear - zFar), 0.0f, 0.0f, 1.0f, 0.0f;
+  return perspective;
 }
 struct Vertex;
 struct Scene;

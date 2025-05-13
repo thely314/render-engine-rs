@@ -128,9 +128,10 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
     Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
     float shadow_result = light->in_shadow_pcss(point);
     // float shadow_result = !light->in_shadow(point);
-    if (shadow_result < EPSILON) {
-      continue;
-    }
+    // if (shadow_result < EPSILON) {
+    //   continue;
+    // }
+    // float shadow_result = 1.0f;
     Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
     Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
@@ -149,7 +150,8 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
 int main() {
   Assimp::Importer importer;
   const aiScene *scene = importer.ReadFile(
-      // "../models/utah_teapot.obj",
+      //
+      // "../models/tallbox.obj",
       "../models/diablo3/diablo3_pose.obj",
       aiProcess_Triangulate | aiProcess_GenNormals);
   if (scene == nullptr) {
@@ -178,20 +180,21 @@ int main() {
   model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
   model->set_scale(2.5f);
+  // model->set_pos({0.0f, -2.45f, 0.0f});
   Vertex floor_vertex[4];
-  floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
+  floor_vertex[0] = Vertex{{-10.0f, -2.5f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[1] = Vertex{{10.0f, -2.45f, 10.0f},
+  floor_vertex[1] = Vertex{{10.0f, -2.5f, 10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[2] = Vertex{{10.0f, -2.45f, -10.0f},
+  floor_vertex[2] = Vertex{{10.0f, -2.5f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[3] = Vertex{{-10.0f, -2.45f, 10.0f},
+  floor_vertex[3] = Vertex{{-10.0f, -2.5f, 10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
@@ -201,14 +204,16 @@ int main() {
   Scene my_scene = Scene(1024, 1024);
   my_scene.add_model(model);
   my_scene.add_model(floor);
-  my_scene.set_eye_pos({0.0f, 0.0f, 7.0f});
-  my_scene.set_view_dir(
-      (model->get_pos() - my_scene.get_eye_pos()).normalized());
-  my_scene.set_view_dir({0.0f, 0.0f, -1.0f});
-  my_scene.set_zNear(-0.1f);
-  my_scene.set_zFar(-1000.0f);
-  my_scene.set_width(1024);
-  my_scene.set_height(1024);
+  // my_scene.set_eye_pos({-10.0f, 0.0f, -10.0f});
+  // my_scene.set_view_dir(
+  //     (model->get_pos() - my_scene.get_eye_pos()).normalized());
+  // my_scene.set_view_dir(-my_scene.get_eye_pos().normalized());
+  my_scene.set_eye_pos({0, 0, 7});
+  my_scene.set_view_dir({0, 0, -1});
+  my_scene.set_zNear(0.1f);
+  my_scene.set_zFar(1000.0f);
+  // my_scene.set_width(2048);
+  // my_scene.set_height(2048);
   auto l1 = std::make_shared<spot_light>();
   l1->set_pos({10, 10, 10});
   l1->set_intensity({250, 250, 250});
@@ -221,9 +226,9 @@ int main() {
   my_scene.set_shader(texture_shader);
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  // for (int i = 0; i != 36; ++i) {
-  //   my_scene.start_render();
-  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
-  //   model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  // }
+  for (int i = 0; i != 36; ++i) {
+    my_scene.start_render();
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
+    model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  }
 }

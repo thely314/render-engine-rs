@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
@@ -90,14 +91,6 @@ void Triangle_rasterization::rasterization_block(
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
-  Eigen::Vector3f points[3];
-  for (int i = 0; i != 3; ++i) {
-    points[i] = {vertexs[i].transform_pos.x(), vertexs[i].transform_pos.y(),
-                 0.0f};
-  }
-  if ((points[1] - points[0]).cross(points[2] - points[1]).z() < 0) {
-    return;
-  }
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -138,23 +131,26 @@ void Triangle_rasterization::rasterization_block(
         beta = beta / -vertexs[1].transform_pos.w();
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
-        float point_transform_pos_z =
-            w_inter * (alpha * vertexs[0].transform_pos.z() +
-                       beta * vertexs[1].transform_pos.z() +
-                       gamma * vertexs[2].transform_pos.z());
-        if (point_transform_pos_z < scene.z_buffer[scene.get_index(x, y)]) {
+        alpha *= w_inter;
+        beta *= w_inter;
+        gamma *= w_inter;
+        float point_transform_pos_z = alpha * vertexs[0].transform_pos.w() +
+                                      beta * vertexs[1].transform_pos.w() +
+                                      gamma * vertexs[2].transform_pos.w();
+        // 不用z插值的原因是精度不够会出z-fighting,直接插w来解决这个问题
+        //  point_transform_pos_z = (1.0f + point_transform_pos_z) * 0.5f;
+        if (point_transform_pos_z > scene.z_buffer[scene.get_index(x, y)]) {
           scene.z_buffer[scene.get_index(x, y)] = point_transform_pos_z;
-          Eigen::Vector3f point_pos =
-              w_inter * (alpha * vertexs[0].pos + beta * vertexs[1].pos +
-                         gamma * vertexs[2].pos);
+          Eigen::Vector3f point_pos = alpha * vertexs[0].pos +
+                                      beta * vertexs[1].pos +
+                                      gamma * vertexs[2].pos;
           Eigen::Vector3f point_normal =
-              (w_inter * (alpha * vertexs[0].normal + beta * vertexs[1].normal +
-                          gamma * vertexs[2].normal))
+              (alpha * vertexs[0].normal + beta * vertexs[1].normal +
+               gamma * vertexs[2].normal)
                   .normalized();
-          Eigen::Vector2f point_uv =
-              w_inter * (alpha * vertexs[0].texture_coords +
-                         beta * vertexs[1].texture_coords +
-                         gamma * vertexs[2].texture_coords);
+          Eigen::Vector2f point_uv = alpha * vertexs[0].texture_coords +
+                                     beta * vertexs[1].texture_coords +
+                                     gamma * vertexs[2].texture_coords;
           Vertex_rasterization point{point_pos,
                                      point_normal,
                                      {0.5f, 0.5f, 0.5f},
@@ -172,14 +168,6 @@ void Triangle_rasterization::rasterization_shadow_map_block(
     const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
     int start_col, int block_row, int block_col) {
   if (block_row <= 0 || block_col <= 0) {
-    return;
-  }
-  Eigen::Vector3f points[3];
-  for (int i = 0; i != 3; ++i) {
-    points[i] = {vertexs[i].transform_pos.x(), vertexs[i].transform_pos.y(),
-                 0.0f};
-  }
-  if ((points[1] - points[0]).cross(points[2] - points[1]).z() < 0) {
     return;
   }
   int box_left = (int)std::min(
@@ -204,15 +192,27 @@ void Triangle_rasterization::rasterization_shadow_map_block(
           vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
           vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
       if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
+        // alpha = alpha / -vertexs[0].transform_pos.w();
+        // beta = beta / -vertexs[1].transform_pos.w();
+        // gamma = gamma / -vertexs[2].transform_pos.w();
+        // float w_inter = 1.0f / (alpha + beta + gamma);
+        // alpha *= w_inter;
+        // beta *= w_inter;
+        // gamma *= w_inter;
+        // float point_transform_pos_z = alpha * vertexs[0].transform_pos.w() +
+        //                               beta * vertexs[1].transform_pos.w() +
+        //                               gamma * vertexs[2].transform_pos.w();
         alpha = alpha / -vertexs[0].transform_pos.w();
         beta = beta / -vertexs[1].transform_pos.w();
         gamma = gamma / -vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
-        float point_transform_pos_z =
-            w_inter * (alpha * vertexs[0].transform_pos.z() +
-                       beta * vertexs[1].transform_pos.z() +
-                       gamma * vertexs[2].transform_pos.z());
-        if (point_transform_pos_z < light.z_buffer[light.get_index(x, y)]) {
+        alpha *= w_inter;
+        beta *= w_inter;
+        gamma *= w_inter;
+        float point_transform_pos_z = alpha * vertexs[0].transform_pos.w() +
+                                      beta * vertexs[1].transform_pos.w() +
+                                      gamma * vertexs[2].transform_pos.w();
+        if (point_transform_pos_z > light.z_buffer[light.get_index(x, y)]) {
           light.z_buffer[light.get_index(x, y)] = point_transform_pos_z;
         }
       }
@@ -222,10 +222,16 @@ void Triangle_rasterization::rasterization_shadow_map_block(
 void Triangle_rasterization::to_NDC(int width, int height) {
   vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
   vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
+  vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
+
   vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
   vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
+  vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
+
   vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
   vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
+  vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
+
   vertexs[0].transform_pos.x() =
       (vertexs[0].transform_pos.x() + 1) * 0.5f * width;
   vertexs[0].transform_pos.y() =

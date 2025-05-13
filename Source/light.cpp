@@ -31,11 +31,11 @@ bool light::in_shadow(Vertex_rasterization &point) { return false; }
 float light::in_shadow_pcf(Vertex_rasterization &point) { return 1.0f; }
 float light::in_shadow_pcss(Vertex_rasterization &point) { return 1.0f; }
 spot_light::spot_light()
-    : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-100.0f), light_size(5.0f), projection_scale(0.0f),
-      pixel_radius(0.0f), zbuffer_width(2048), zbuffer_height(2048),
+    : light(), light_dir(0.0f, 0.0f, -1.0f), fov(150.0f), aspect_ratio(1.0f),
+      zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), projection_scale(0.0f),
+      pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
-  z_buffer.resize(zbuffer_width * zbuffer_height, INFINITY);
+  z_buffer.resize(zbuffer_width * zbuffer_height, -INFINITY);
 }
 
 Eigen::Vector3f spot_light::get_light_dir() const { return light_dir; }
@@ -73,7 +73,7 @@ int spot_light::get_index(int x, int y) {
 }
 
 void spot_light::look_at(const Scene &scene) {
-  std::fill(z_buffer.begin(), z_buffer.end(), INFINITY);
+  std::fill(z_buffer.begin(), z_buffer.end(), -INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(pos, light_dir),
                              projection = get_projection_matrix(
@@ -137,35 +137,12 @@ bool spot_light::in_shadow(Vertex_rasterization &point) {
   int x_to_int = std::clamp((int)point.transform_pos.x(), 0, zbuffer_width - 1);
   int y_to_int =
       std::clamp((int)point.transform_pos.y(), 0, zbuffer_height - 1);
-  float recv_z = point.transform_pos.z();
-  Eigen::Vector3f transform_normal = (normal_mv * point.normal).normalized();
-  Eigen::Vector3f center =
-      Eigen::Vector3f{
-          ((x_to_int - 0.5f * zbuffer_width) * 2.0f + 1) * pixel_radius,
-          ((y_to_int - 0.5f * zbuffer_height) * 2.0f + 1) * pixel_radius, zNear}
-          .normalized();
-  Eigen::Vector3f edge =
-      Eigen::Vector3f{((x_to_int - 0.5f * zbuffer_width) * 2.0f +
-                       (transform_normal.x() < 0 ? 0.0f : 2.0f)) *
-                          pixel_radius,
-                      ((y_to_int - 0.5f * zbuffer_height) * 2.0f +
-                       (transform_normal.y() < 0 ? 0.0f : 2.0f)) *
-                          pixel_radius,
-                      zNear}
-          .normalized();
-  float distance = (point.pos - pos).norm();
+
   float bias =
-      -0.04f * 1024 / zbuffer_width +
-      std::max(
-          0.0f,
-          ((center.dot(transform_normal) / edge.dot(transform_normal)) - 1.0f) *
-              distance) *
-          projection_scale;
-  // std::cout << bias << '\n';
-  // float bias =
-  //     0.01f + bias_scale * 1024.0f / zbuffer_height *
-  //                  (1.0f - (pos - point.pos).normalized().dot(point.normal));
-  if (recv_z + bias < z_buffer[get_index(x_to_int, y_to_int)]) {
+      0.02f + bias_scale * 1024.0f / zbuffer_height *
+                  (1.0f - (pos - point.pos).normalized().dot(point.normal));
+  if ((mv * (point.pos.homogeneous())).z() + bias >
+      z_buffer[get_index(x_to_int, y_to_int)]) {
     return false;
   }
   return true;
@@ -190,7 +167,7 @@ float spot_light::in_shadow_pcf(Vertex_rasterization &point) {
   int pcf_num = 0, unshadow_num = 0;
   int center_x = point.transform_pos.x(), center_y = point.transform_pos.y();
   float bias =
-      0.01f + bias_scale * 1024.0f / zbuffer_height *
+      0.02f + bias_scale * 1024.0f / zbuffer_height *
                   (1.0f - (pos - point.pos).normalized().dot(point.normal));
   constexpr int pcf_radius = 3;
   for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -198,7 +175,7 @@ float spot_light::in_shadow_pcf(Vertex_rasterization &point) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         if (center_x + x >= 0 && center_x + x < zbuffer_width) {
           ++pcf_num;
-          if (point.transform_pos.z() - (pcf_radius + 1) * bias <
+          if ((mv * (point.pos.homogeneous())).z() + (pcf_radius + 1) * bias >
               z_buffer[get_index(center_x + x, center_y + y)]) {
             ++unshadow_num;
           }
@@ -217,7 +194,7 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       point.transform_pos.y() > -point.transform_pos.w() ||
       point.transform_pos.z() < point.transform_pos.w() ||
       point.transform_pos.z() > -point.transform_pos.w()) {
-    return 0.0f;
+    return 1.0f;
   }
   point.transform_pos.x() /= point.transform_pos.w();
   point.transform_pos.y() /= point.transform_pos.w();
@@ -225,26 +202,28 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       (point.transform_pos.x() + 1) * 0.5f * zbuffer_width;
   point.transform_pos.y() =
       (point.transform_pos.y() + 1) * 0.5f * zbuffer_height;
+
   int center_x = point.transform_pos.x(), center_y = point.transform_pos.y();
   float point_projection_depth = point.transform_pos.z();
   point.transform_pos = mv * point.pos.homogeneous();
+
   float bias =
       0.01f + bias_scale * 1024.0f / zbuffer_height *
                   (1.0f - (pos - point.pos).normalized().dot(point.normal));
-  // float light_frustum_width = ;
-  // find findblocker radius
-  constexpr int max_pcss_radius = 16, min_pcss_radius = 2;
-  float s = 1.0f - (point.transform_pos.z() - zNear) / (zFar - zNear);
-  int pcss_radius = min_pcss_radius + std::clamp(s, 0.0f, 1.0f) *
-                                          (max_pcss_radius - min_pcss_radius);
-  // find blocker
+  constexpr float to_radian = M_PI / 360.0f;
+  float wide_factor = tan(to_radian * fov);
+  int pcss_radius =
+      roundf((point.transform_pos.z() + 1) / (point.transform_pos.z()) *
+             light_size / wide_factor * zbuffer_height / 128.0f);
+  constexpr int max_pcss_radius = 64, min_pcss_radius = 2;
+  pcss_radius = std::clamp(pcss_radius, min_pcss_radius, max_pcss_radius);
   int block_num = 0;
   float block_depth = 0.0f;
   for (int y = -pcss_radius; y <= pcss_radius; ++y) {
     if (center_y + y >= 0 && center_y + y < zbuffer_height) {
       for (int x = -pcss_radius; x <= pcss_radius; ++x) {
         if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-          if (point_projection_depth + (pcss_radius + 1) * bias >
+          if (point.transform_pos.z() + (pcss_radius + 1) * bias <
               z_buffer[get_index(center_x + x, center_y + y)]) {
             block_depth += z_buffer[get_index(center_x + x, center_y + y)];
             ++block_num;
@@ -253,25 +232,22 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       }
     }
   }
-  auto projection_to_view = [this](float projection_depth) -> float {
-    return (projection_depth + 2 * zNear * zFar / (zNear - zFar)) *
-           ((zNear - zFar) / (zNear + zFar));
-  };
+  if (block_num == 0) {
+    return 1.0f;
+  }
   block_depth /= block_num;
-  block_depth = projection_to_view(block_depth);
   float penumbra =
       (point.transform_pos.z() - block_depth) / block_depth * light_size;
-  // pcf
-  // TODO: 把魔数16换成合理计算的参数
+  int pcf_radius =
+      std::max(0.0f, roundf(penumbra * 0.5f * zbuffer_width /
+                            (-point.transform_pos.z() * wide_factor)));
   int pcf_num = 0, unshadow_num = 0;
-  constexpr float to_radian = M_PI / 360.0f;
-  int pcf_radius = std::max(1, (int)(penumbra * 16));
   for (int y = -pcf_radius; y <= pcf_radius; ++y) {
     if (center_y + y >= 0 && center_y + y < zbuffer_height) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         if (center_x + x >= 0 && center_x + x < zbuffer_width) {
           ++pcf_num;
-          if (point_projection_depth - (pcf_radius + 1) * bias <
+          if (point.transform_pos.z() + (pcf_radius + 2) * bias >
               z_buffer[get_index(center_x + x, center_y + y)]) {
             ++unshadow_num;
           }
