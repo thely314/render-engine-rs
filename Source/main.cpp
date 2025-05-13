@@ -128,9 +128,9 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
     Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
     float shadow_result = light->in_shadow_pcss(point);
     // float shadow_result = !light->in_shadow(point);
-    // if (shadow_result < EPSILON) {
-    //   continue;
-    // }
+    if (shadow_result < EPSILON) {
+      continue;
+    }
     // float shadow_result = 1.0f;
     Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
     Eigen::Vector3f light_dir = light->get_pos() - point.pos;
@@ -182,19 +182,19 @@ int main() {
   model->set_scale(2.5f);
   // model->set_pos({0.0f, -2.45f, 0.0f});
   Vertex floor_vertex[4];
-  floor_vertex[0] = Vertex{{-10.0f, -2.5f, -10.0f},
+  floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[1] = Vertex{{10.0f, -2.5f, 10.0f},
+  floor_vertex[1] = Vertex{{10.0f, -2.45f, 10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[2] = Vertex{{10.0f, -2.5f, -10.0f},
+  floor_vertex[2] = Vertex{{10.0f, -2.45f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
-  floor_vertex[3] = Vertex{{-10.0f, -2.5f, 10.0f},
+  floor_vertex[3] = Vertex{{-10.0f, -2.45f, 10.0f},
                            {0.0f, 1.0f, 0.0f},
                            {0.5f, 0.5f, 0.5f},
                            {0.0f, 0.0f}};
@@ -211,7 +211,7 @@ int main() {
   my_scene.set_eye_pos({0, 0, 7});
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(0.1f);
-  my_scene.set_zFar(1000.0f);
+  my_scene.set_zFar(100.0f);
   // my_scene.set_width(2048);
   // my_scene.set_height(2048);
   auto l1 = std::make_shared<spot_light>();
