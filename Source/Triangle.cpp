@@ -199,16 +199,13 @@ void Triangle_rasterization::rasterization_shadow_map_block(
         alpha *= w_inter;
         beta *= w_inter;
         gamma *= w_inter;
-        float point_transform_pos_z = alpha * vertexs[0].transform_pos.z() +
-                                      beta * vertexs[1].transform_pos.z() +
-                                      gamma * vertexs[2].transform_pos.z();
         float point_transform_pos_w = alpha * vertexs[0].transform_pos.w() +
                                       beta * vertexs[1].transform_pos.w() +
                                       gamma * vertexs[2].transform_pos.w();
-        point_transform_pos_z /= -point_transform_pos_w;
-        point_transform_pos_z = (1.0f + point_transform_pos_z) * 0.5f;
-        if (point_transform_pos_z < light.z_buffer[light.get_index(x, y)]) {
-          light.z_buffer[light.get_index(x, y)] = point_transform_pos_z;
+        // 为了方便PCSS计算，shadow map中存的是视图空间的深度而不是NDC空间的
+        // 而且NDC空间不线性导致bias很难调
+        if (point_transform_pos_w > light.z_buffer[light.get_index(x, y)]) {
+          light.z_buffer[light.get_index(x, y)] = point_transform_pos_w;
         }
       }
     }

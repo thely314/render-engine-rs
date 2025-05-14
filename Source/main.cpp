@@ -146,8 +146,8 @@ int main() {
   Assimp::Importer importer;
   const aiScene *scene = importer.ReadFile(
       //
-      "../models/tallbox.obj",
-      // "../models/diablo3/diablo3_pose.obj",
+      // "../models/tallbox.obj",
+      "../models/diablo3/diablo3_pose.obj",
       aiProcess_Triangulate | aiProcess_GenNormals);
   if (scene == nullptr) {
     fprintf(stderr, "%s\n", importer.GetErrorString());
@@ -157,24 +157,24 @@ int main() {
 
   processNode(scene->mRootNode, scene, *model);
 
-  // std::shared_ptr<Texture> diffuse_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  // model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
+  std::shared_ptr<Texture> diffuse_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
+  model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
 
-  // std::shared_ptr<Texture> specular_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  // model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
+  std::shared_ptr<Texture> specular_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
+  model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
 
-  // std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
-  //     "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  // model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
+  std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
+      "../models/diablo3/diablo3_pose_nm_tangent.tga");
+  model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
 
-  // std::shared_ptr<Texture> glow_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  // model->set_texture(glow_texture, Model::GLOW_TEXTURE);
+  std::shared_ptr<Texture> glow_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
+  model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  // model->set_scale(2.5f);
-  model->set_pos({0.0f, -2.45f, 0.0f});
+  model->set_scale(2.5f);
+  // model->set_pos({0.0f, -2.45f, 0.0f});
   Vertex floor_vertex[4];
   floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
@@ -195,7 +195,7 @@ int main() {
   auto floor = std::make_shared<Model>();
   floor->add(Triangle(floor_vertex[0], floor_vertex[1], floor_vertex[2]));
   floor->add(Triangle(floor_vertex[0], floor_vertex[3], floor_vertex[1]));
-  Scene my_scene = Scene(2048, 2048);
+  Scene my_scene = Scene(1024, 1024);
   my_scene.add_model(model);
   my_scene.add_model(floor);
   // my_scene.set_eye_pos({-10.0f, 0.0f, -10.0f});
@@ -204,8 +204,8 @@ int main() {
   // my_scene.set_view_dir(-my_scene.get_eye_pos().normalized());
   my_scene.set_eye_pos({0, 0, 7});
   my_scene.set_view_dir({0, 0, -1});
-  my_scene.set_zNear(0.1f);
-  my_scene.set_zFar(100.0f);
+  my_scene.set_zNear(-0.1f);
+  my_scene.set_zFar(-100.0f);
   // my_scene.set_width(2048);
   // my_scene.set_height(2048);
   auto l1 = std::make_shared<spot_light>();
@@ -224,8 +224,8 @@ int main() {
   my_scene.start_render();
   my_scene.save_to_file("output.png");
   // for (int i = 0; i != 36; ++i) {
-  //   my_scene.start_render();
-  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
-  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  // }
+  // my_scene.start_render();
+  // my_scene.save_to_file(std::format("output{}.png", i + 1));
+  // model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  //}
 }

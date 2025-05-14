@@ -23,7 +23,7 @@ void Scene::start_render() {
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
                              projection =
-                                 get_projection_matrix(45, 1.0f, -zNear, -zFar);
+                                 get_projection_matrix(45, 1.0f, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   Eigen::Matrix<float, 4, 4> mv = view * model;
   for (auto light : lights) {
