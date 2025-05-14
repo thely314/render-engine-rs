@@ -1,5 +1,4 @@
 #pragma once
-#include "Eigen/Core"
 #include "Object.hpp"
 #include "Scene.hpp"
 #include "Texture.hpp"
@@ -32,7 +31,7 @@ public:
   float get_scale() const;
   void set_texture(const std::shared_ptr<Texture> &texture, TEXTURES id);
   std::shared_ptr<Texture> get_texture(TEXTURES id) const;
-  void move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
+  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
   void add(const std::shared_ptr<Model> &obj);
   void add(const Triangle &obj);
   ~Model();
@@ -50,8 +49,10 @@ private:
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp);
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+            const Eigen::Matrix<float, 4, 4> &mv);
   std::vector<std::shared_ptr<Model>> sub_models;
   std::vector<Triangle> triangles;
   std::vector<Triangle_rasterization> clip_triangles;

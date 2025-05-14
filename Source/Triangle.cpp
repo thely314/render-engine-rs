@@ -4,14 +4,10 @@
 #include "global.hpp"
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <iostream>
-#include <vector>
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 
-void Triangle::move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
+void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   for (auto &&v : vertexs) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
     Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
@@ -20,7 +16,8 @@ void Triangle::move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   }
 }
 
-void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) {
+void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
+                    const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {
   std::vector<Triangle_rasterization> triangles{*this};
   triangles[0].vertexs[0].transform_pos =
       mvp * triangles[0].vertexs[0].pos.homogeneous();
@@ -40,7 +37,7 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) {
   }
 }
 
-void Triangle_rasterization::move(
+void Triangle_rasterization::modeling(
     const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   for (auto &&v : vertexs) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
@@ -141,7 +138,6 @@ void Triangle_rasterization::rasterization_block(
                                       beta * vertexs[1].transform_pos.w() +
                                       gamma * vertexs[2].transform_pos.w();
         point_transform_pos_z /= -point_transform_pos_w;
-        // 不用z插值的原因是精度不够会出z-fighting,直接插w来解决这个问题
         point_transform_pos_z = (1.0f + point_transform_pos_z) * 0.5f;
         if (point_transform_pos_z < scene.z_buffer[scene.get_index(x, y)]) {
           scene.z_buffer[scene.get_index(x, y)] = point_transform_pos_z;
@@ -174,9 +170,6 @@ void Triangle_rasterization::rasterization_shadow_map_block(
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
-  // vertexs[0].transform_pos.z() /= vertexs[0].transform_pos.w();
-  // vertexs[1].transform_pos.z() /= vertexs[1].transform_pos.w();
-  // vertexs[2].transform_pos.z() /= vertexs[2].transform_pos.w();
   int box_left = (int)std::min(
       vertexs[0].transform_pos.x(),
       std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
@@ -212,8 +205,8 @@ void Triangle_rasterization::rasterization_shadow_map_block(
         float point_transform_pos_w = alpha * vertexs[0].transform_pos.w() +
                                       beta * vertexs[1].transform_pos.w() +
                                       gamma * vertexs[2].transform_pos.w();
-        point_transform_pos_z /= point_transform_pos_w;
-        point_transform_pos_z = (1.0f - point_transform_pos_z) * 0.5f;
+        point_transform_pos_z /= -point_transform_pos_w;
+        point_transform_pos_z = (1.0f + point_transform_pos_z) * 0.5f;
         if (point_transform_pos_z < light.z_buffer[light.get_index(x, y)]) {
           light.z_buffer[light.get_index(x, y)] = point_transform_pos_z;
         }
@@ -245,7 +238,17 @@ void Triangle_rasterization::to_NDC(int width, int height) {
       (vertexs[2].transform_pos.y() + 1) * 0.5f * height;
 }
 void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
+                                  const Eigen::Matrix<float, 4, 4> &mv,
                                   Model &parent) {
+  Eigen::Vector3f view_space_pos[3];
+  view_space_pos[0] = (mv * vertexs[0].pos.homogeneous()).head<3>();
+  view_space_pos[1] = (mv * vertexs[1].pos.homogeneous()).head<3>();
+  view_space_pos[2] = (mv * vertexs[2].pos.homogeneous()).head<3>();
+  Eigen::Vector3f normal = (view_space_pos[1] - view_space_pos[0])
+                               .cross(view_space_pos[2] - view_space_pos[1]);
+  if (normal.z() < -EPSILON) {
+    return;
+  }
   std::vector<Triangle_rasterization> triangles{*this};
   triangles[0].vertexs[0].transform_pos =
       mvp * triangles[0].vertexs[0].pos.homogeneous();
@@ -259,7 +262,6 @@ void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
   clip_triangles<0, false>(triangles);
   clip_triangles<1, true>(triangles);
   clip_triangles<1, false>(triangles);
-  // TODO: 上锁
   for (auto obj : triangles) {
     parent.clip_triangles.push_back(obj);
   }

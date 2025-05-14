@@ -36,7 +36,7 @@ class Triangle : public Object {
 public:
   Triangle() = default;
   Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2);
-  void move(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
   Vertex vertexs[3];
 
 private:
@@ -51,7 +51,8 @@ private:
                                       spot_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override {}
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
 };
 
 struct Vertex_rasterization {
@@ -93,7 +94,7 @@ public:
   Triangle_rasterization(const Vertex_rasterization &v0,
                          const Vertex_rasterization &v1,
                          const Vertex_rasterization &v2);
-  void move(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
   Vertex_rasterization vertexs[3];
 
 private:
@@ -109,7 +110,8 @@ private:
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);
-  void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) override;
+  void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
   template <int N, bool isLess>
   friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,

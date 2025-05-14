@@ -38,7 +38,8 @@ float light::in_shadow_pcss(Vertex_rasterization &point) { return 1.0f; }
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      zbuffer_width(8192), zbuffer_height(8192), enable_shadow(true),
+      zbuffer_width(2048), zbuffer_height(2048), enable_shadow(true),
+      enable_pcf_poisson(true), enable_pcss_poisson(true),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {
   z_buffer.resize(zbuffer_width * zbuffer_height, INFINITY);
 }
@@ -81,6 +82,18 @@ bool spot_light::get_shadow_status() const { return enable_shadow; }
 
 void spot_light::set_shadow_status(bool status) { enable_shadow = status; }
 
+bool spot_light::get_pcf_poisson_status() const { return enable_pcf_poisson; }
+
+void spot_light::set_pcf_poisson_status(bool status) {
+  enable_pcf_poisson = status;
+}
+
+bool spot_light::get_pcss_poisson_status() const { return enable_pcss_poisson; }
+
+void spot_light::set_pcss_poisson_status(bool status) {
+  enable_pcss_poisson = status;
+}
+
 void spot_light::look_at(const Scene &scene) {
   if (!enable_shadow) {
     return;
@@ -95,10 +108,8 @@ void spot_light::look_at(const Scene &scene) {
   this->mv = view * model;
   constexpr float to_radian = M_PI / 360.0f;
   fov_factor = tan(to_radian * fov);
-  this->normal_mv = view.block<3, 3>(0, 0).inverse().transpose() *
-                    model.block<3, 3>(0, 0).inverse().transpose();
   for (auto obj : scene.objects) {
-    obj->clip(mvp);
+    obj->clip(mvp, mv);
   }
   for (auto obj : scene.objects) {
     obj->to_NDC(zbuffer_width, zbuffer_height);
@@ -193,16 +204,32 @@ float spot_light::in_shadow_pcf(Vertex_rasterization &point) {
                1.0f * EPSILON *
                    (1.0f - (pos - point.pos).normalized().dot(point.normal))) *
       512.0f / zbuffer_height * fov_factor;
-  constexpr int pcf_radius = 0;
-  for (int y = -pcf_radius; y <= pcf_radius; ++y) {
-    if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
-        if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-          ++pcf_num;
-          if (point.transform_pos.z() - (pcf_radius + 1) * bias <
-              z_buffer[get_index(center_x + x, center_y + y)]) {
-            ++unshadow_num;
+  constexpr int pcf_radius = 1;
+  if (pcf_radius < 2 || !enable_pcf_poisson) {
+    for (int y = -pcf_radius; y <= pcf_radius; ++y) {
+      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+        for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
+            ++pcf_num;
+            if (point.transform_pos.z() -
+                    (std::max(abs(x), abs(y)) + 1) * bias <
+                z_buffer[get_index(center_x + x, center_y + y)]) {
+              ++unshadow_num;
+            }
           }
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < sample_num; ++i) {
+      int x = roundf(pcf_radius * poisson_disk[i][0]),
+          y = roundf(pcf_radius * poisson_disk[i][1]);
+      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
+          center_x + x >= 0 && center_x + x < zbuffer_width) {
+        ++pcf_num;
+        if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias <
+            z_buffer[get_index(center_x + x, center_y + y)]) {
+          ++unshadow_num;
         }
       }
     }
@@ -248,31 +275,34 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
   auto from_NDC_to_light_view = [=](float NDC_depth) -> float {
     return 2.0f * n_mul_f / (n_sub_f * (2.0f * NDC_depth - 1.0f) + n_plus_f);
   };
-  // for (int y = -pcss_radius; y <= pcss_radius; ++y) {
-  //   if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-  //     for (int x = -pcss_radius; x <= pcss_radius; ++x) {
-  //       if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-  //         if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias
-  //         >
-  //             z_buffer[get_index(center_x + x, center_y + y)]) {
-  //           block_depth += from_NDC_to_light_view(
-  //               z_buffer[get_index(center_x + x, center_y + y)]);
-  //           ++block_num;
-  //         };
-  //       }
-  //     }
-  //   }
-  // }
-  for (int i = 0; i < sample_num; ++i) {
-    int x = roundf(pcss_radius * poisson_disk[i][0]),
-        y = roundf(pcss_radius * poisson_disk[i][1]);
-    if (center_y + y >= 0 && center_y + y < zbuffer_height &&
-        center_x + x >= 0 && center_x + x < zbuffer_width) {
-      if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias >
-          z_buffer[get_index(center_x + x, center_y + y)]) {
-        block_depth += from_NDC_to_light_view(
-            z_buffer[get_index(center_x + x, center_y + y)]);
-        ++block_num;
+  if (pcss_radius < 2 || !enable_pcss_poisson) {
+    for (int y = -pcss_radius; y <= pcss_radius; ++y) {
+      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+        for (int x = -pcss_radius; x <= pcss_radius; ++x) {
+          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
+            if (point.transform_pos.z() -
+                    (std::max(abs(x), abs(y)) + 1) * bias >
+                z_buffer[get_index(center_x + x, center_y + y)]) {
+              block_depth += from_NDC_to_light_view(
+                  z_buffer[get_index(center_x + x, center_y + y)]);
+              ++block_num;
+            };
+          }
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < sample_num; ++i) {
+      int x = roundf(pcss_radius * poisson_disk[i][0]),
+          y = roundf(pcss_radius * poisson_disk[i][1]);
+      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
+          center_x + x >= 0 && center_x + x < zbuffer_width) {
+        if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias >
+            z_buffer[get_index(center_x + x, center_y + y)]) {
+          block_depth += from_NDC_to_light_view(
+              z_buffer[get_index(center_x + x, center_y + y)]);
+          ++block_num;
+        }
       }
     }
   }
@@ -286,29 +316,32 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
                                          (-z_light_view_depth * fov_factor)));
   pcf_radius = std::max(1, pcf_radius);
   int pcf_num = 0, unshadow_num = 0;
-  // for (int y = -pcf_radius; y <= pcf_radius; ++y) {
-  //   if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-  //     for (int x = -pcf_radius; x <= pcf_radius; ++x) {
-  //       if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-  //         ++pcf_num;
-  //         if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias
-  //         <
-  //             z_buffer[get_index(center_x + x, center_y + y)]) {
-  //           ++unshadow_num;
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-  for (int i = 0; i < sample_num; ++i) {
-    int x = roundf(pcf_radius * poisson_disk[i][0]),
-        y = roundf(pcf_radius * poisson_disk[i][1]);
-    if (center_y + y >= 0 && center_y + y < zbuffer_height &&
-        center_x + x >= 0 && center_x + x < zbuffer_width) {
-      ++pcf_num;
-      if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias <
-          z_buffer[get_index(center_x + x, center_y + y)]) {
-        ++unshadow_num;
+  if (pcf_radius < 2 || !enable_pcf_poisson) {
+    for (int y = -pcf_radius; y <= pcf_radius; ++y) {
+      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
+        for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
+            ++pcf_num;
+            if (point.transform_pos.z() -
+                    (std::max(abs(x), abs(y)) + 1) * bias <
+                z_buffer[get_index(center_x + x, center_y + y)]) {
+              ++unshadow_num;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < sample_num; ++i) {
+      int x = roundf(pcf_radius * poisson_disk[i][0]),
+          y = roundf(pcf_radius * poisson_disk[i][1]);
+      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
+          center_x + x >= 0 && center_x + x < zbuffer_width) {
+        ++pcf_num;
+        if (point.transform_pos.z() - (std::max(abs(x), abs(y)) + 1) * bias <
+            z_buffer[get_index(center_x + x, center_y + y)]) {
+          ++unshadow_num;
+        }
       }
     }
   }

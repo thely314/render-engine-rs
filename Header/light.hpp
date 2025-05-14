@@ -52,6 +52,10 @@ public:
   void set_height(int height);
   bool get_shadow_status() const;
   void set_shadow_status(bool status);
+  bool get_pcf_poisson_status() const;
+  void set_pcf_poisson_status(bool status);
+  bool get_pcss_poisson_status() const;
+  void set_pcss_poisson_status(bool status);
 
 private:
   Eigen::Vector3f light_dir;
@@ -64,9 +68,10 @@ private:
   int zbuffer_width;
   int zbuffer_height;
   bool enable_shadow;
+  bool enable_pcf_poisson;
+  bool enable_pcss_poisson;
   Eigen::Matrix<float, 4, 4> mvp;
   Eigen::Matrix<float, 4, 4> mv;
-  Eigen::Matrix<float, 3, 3> normal_mv;
   std::vector<float> z_buffer;
   int get_index(int x, int y);
   void look_at(const Scene &) override;

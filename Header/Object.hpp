@@ -15,8 +15,9 @@ public:
   rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
                                  spot_light &light, int start_row,
                                  int start_col, int block_row, int block_col);
-  virtual void clip(const Eigen::Matrix<float, 4, 4> &mvp, Model &parent) = 0;
-  virtual void move(const Eigen::Matrix<float, 4, 4> &modeling_matrix) = 0;
+  virtual void clip(const Eigen::Matrix<float, 4, 4> &mvp,
+                    const Eigen::Matrix<float, 4, 4> &mv, Model &parent) = 0;
+  virtual void modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) = 0;
 
   virtual ~Object() {};
 };

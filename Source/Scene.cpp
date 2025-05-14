@@ -25,11 +25,12 @@ void Scene::start_render() {
                              projection =
                                  get_projection_matrix(45, 1.0f, -zNear, -zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
+  Eigen::Matrix<float, 4, 4> mv = view * model;
   for (auto light : lights) {
     light->look_at(*this);
   }
   for (auto obj : objects) {
-    obj->clip(mvp);
+    obj->clip(mvp, mv);
   }
   for (auto obj : objects) {
     obj->to_NDC(width, height);
