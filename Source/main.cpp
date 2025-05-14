@@ -224,8 +224,8 @@ int main() {
   my_scene.start_render();
   my_scene.save_to_file("output.png");
   // for (int i = 0; i != 36; ++i) {
-  // my_scene.start_render();
-  // my_scene.save_to_file(std::format("output{}.png", i + 1));
-  // model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  //}
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }

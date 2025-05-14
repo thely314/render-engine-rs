@@ -7,16 +7,25 @@
 #include <cstdio>
 #include <thread>
 constexpr float bias_scale = 0.04f; // 经验值
-constexpr int sample_num = 16;
-constexpr float poisson_disk[16][2] = {
-    {-0.94201624, -0.39906216},  {0.94558609, -0.76890725},
-    {-0.094184101, -0.92938870}, {0.34495938, 0.29387760},
-    {-0.91588581, 0.45771432},   {-0.81544232, -0.87912464},
-    {-0.38277543, 0.27676845},   {0.97484398, 0.75648379},
-    {0.44323325, -0.97511554},   {0.53742981, -0.47373420},
-    {-0.26496911, -0.41893023},  {0.79197514, 0.19090188},
-    {-0.24188840, 0.99706507},   {-0.81409955, 0.91437590},
-    {0.19984126, 0.78641367},    {0.14383161, -0.14100790}};
+constexpr int sample_num = 17;
+constexpr float poisson_disk[17][2] = {{-0.94201624, -0.39906216},
+                                       {0.94558609, -0.76890725},
+                                       {-0.094184101, -0.92938870},
+                                       {0.34495938, 0.29387760},
+                                       {-0.91588581, 0.45771432},
+                                       {-0.81544232, -0.87912464},
+                                       {-0.38277543, 0.27676845},
+                                       {0.97484398, 0.75648379},
+                                       {0.44323325, -0.97511554},
+                                       {0.53742981, -0.47373420},
+                                       {-0.26496911, -0.41893023},
+                                       {0.79197514, 0.19090188},
+                                       {-0.24188840, 0.99706507},
+                                       {-0.81409955, 0.91437590},
+                                       {0.19984126, 0.78641367},
+                                       {0.14383161, -0.14100790},
+                                       {0.0f, 0.0f}};
+// 最后一项不是泊松分布，是为了修正泊松分布的误差而加入的项
 light::light() : pos(0.0f, 0.0f, 0.0f), intensity(0.0f, 0.0f, 0.0f) {}
 light::light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity)
     : pos(pos), intensity(intensity) {}
@@ -168,8 +177,8 @@ bool spot_light::in_shadow(Vertex_rasterization &point) {
       std::max(0.2f,
                1.0f *
                    (1.0f - (pos - point.pos).normalized().dot(point.normal))) *
-      EPSILON * bias_scale * zbuffer_height * fov_factor *
-      -point.transform_pos.z();
+      bias_scale * fov_factor * -point.transform_pos.z() * 512.0f /
+      zbuffer_height;
   if (point.transform_pos.z() + bias >
       z_buffer[get_index(x_to_int, y_to_int)]) {
     return false;
@@ -203,8 +212,8 @@ float spot_light::in_shadow_pcf(Vertex_rasterization &point) {
       std::max(0.2f,
                1.0f *
                    (1.0f - (pos - point.pos).normalized().dot(point.normal))) *
-      EPSILON * bias_scale * zbuffer_height * fov_factor *
-      -point.transform_pos.z();
+      bias_scale * fov_factor * -point.transform_pos.z() * 512.0f /
+      zbuffer_height;
   constexpr int pcf_radius = 1;
   if (pcf_radius < 2 || !enable_pcf_poisson) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -262,11 +271,12 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       std::max(0.2f,
                1.0f *
                    (1.0f - (pos - point.pos).normalized().dot(point.normal))) *
-      EPSILON * bias_scale * zbuffer_height * fov_factor *
-      -point.transform_pos.z();
-  int pcss_radius = std::max(
-      1.0f, roundf((point.transform_pos.z() + 1) / point.transform_pos.z() *
-                   light_size / fov_factor * zbuffer_height / 128.0f));
+      bias_scale * fov_factor * -point.transform_pos.z() * 512.0f /
+      zbuffer_height;
+  int pcss_radius = std::max(1.0f, roundf((point.transform_pos.z() + 1) /
+                                          point.transform_pos.z() * light_size /
+                                          fov_factor * zbuffer_height / 64.0f));
+  // pcss半径越大阴影过渡越平滑
   int block_num = 0;
   float block_depth = 0.0f;
   if (pcss_radius < 2 || !enable_pcss_poisson) {
@@ -298,6 +308,7 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
       }
     }
   }
+
   if (block_num == 0 || block_depth > -EPSILON) {
     return 1.0f;
   }
@@ -305,10 +316,9 @@ float spot_light::in_shadow_pcss(Vertex_rasterization &point) {
   float penumbra =
       (point.transform_pos.z() - block_depth) / block_depth * light_size;
   int pcf_radius =
-      std::max(0.0f, roundf(penumbra * 0.5f * zbuffer_width /
+      std::max(1.0f, roundf(penumbra * 0.5f * zbuffer_width /
                             (-point.transform_pos.z() * fov_factor)));
   pcf_radius = std::max(1, pcf_radius);
-  // pcf_radius = 0;
   int pcf_num = 0, unshadow_num = 0;
   if (pcf_radius < 2 || !enable_pcf_poisson) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
