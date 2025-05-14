@@ -50,6 +50,8 @@ public:
   void set_width(int width);
   int get_height() const;
   void set_height(int height);
+  bool get_shadow_status() const;
+  void set_shadow_status(bool status);
 
 private:
   Eigen::Vector3f light_dir;
@@ -58,10 +60,10 @@ private:
   float zNear;
   float zFar;
   float light_size;
-  float projection_scale;
-  float pixel_radius;
+  float fov_factor;
   int zbuffer_width;
   int zbuffer_height;
+  bool enable_shadow;
   Eigen::Matrix<float, 4, 4> mvp;
   Eigen::Matrix<float, 4, 4> mv;
   Eigen::Matrix<float, 3, 3> normal_mv;

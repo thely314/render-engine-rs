@@ -1,13 +1,10 @@
-#include "Eigen/Core"
 #include "Model.hpp"
 #include "global.hpp"
 #include <Scene.hpp>
 #include <algorithm>
 #include <cmath>
 #include <functional>
-#include <iostream>
 #include <thread>
-#include <vector>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>

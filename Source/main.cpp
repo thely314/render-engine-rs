@@ -127,11 +127,9 @@ Eigen::Vector3f texture_shader(Vertex_rasterization &point, const Scene &scene,
   for (auto &&light : scene.lights) {
     Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
     float shadow_result = light->in_shadow_pcss(point);
-    // float shadow_result = !light->in_shadow(point);
     if (shadow_result < EPSILON) {
       continue;
     }
-    // float shadow_result = 1.0f;
     Eigen::Vector3f eye_dir = (point.pos - scene.get_eye_pos()).normalized();
     Eigen::Vector3f light_dir = light->get_pos() - point.pos;
     float light_distance_square = light_dir.dot(light_dir);
@@ -224,11 +222,12 @@ int main() {
   my_scene.add_light(l1);
   // my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
+  // l1->set_shadow_status(false);
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->move(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }
