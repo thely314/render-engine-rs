@@ -1,6 +1,8 @@
 #include <Texture.hpp>
-Texture::Texture(const char *filename) {
-  data = stbi_load(filename, &width, &height, &channels, 0);
+#include <algorithm>
+#include <cstdio>
+Texture::Texture(const char *filename, int desire_channels) {
+  data = stbi_load(filename, &width, &height, &channels, desire_channels);
   if (data == nullptr) {
     printf("Error: could not open file %s\n", filename);
   }
@@ -14,58 +16,27 @@ Eigen::Vector3f Texture::get_color(float u, float v) {
   v *= height;
   u = std::clamp(u, 0.0f, width * 1.0f);
   v = std::clamp(v, 0.0f, height * 1.0f);
-
   int center_x = round(u), center_y = round(v);
   float h_rate = u + 0.5f - center_x, v_rate = v + 0.5f - center_y;
-  if (center_x == 0 || center_x == width) {
-    if (center_y == 0 || center_y == height) {
-      int idx = get_index(u, v);
-      return Eigen::Vector3f(data[idx], data[idx + 1], data[idx + 2]) / 255.0f;
-    } else {
-      int idx_top, idx_bottom;
-      if (center_x == 0) {
-        idx_top = get_index(center_x, center_y),
-        idx_bottom = get_index(center_x, center_y - 1);
-      } else {
-        idx_top = get_index(center_x - 1, center_y),
-        idx_bottom = get_index(center_x - 1, center_y - 1);
-      }
-      return Eigen::Vector3f(v_rate * data[idx_top] +
-                                 (1 - v_rate) * data[idx_bottom],
-                             v_rate * data[idx_top + 1] +
-                                 (1 - v_rate) * data[idx_bottom + 1],
-                             v_rate * data[idx_top + 2] +
-                                 (1 - v_rate) * data[idx_bottom + 1]) /
-             255.0f;
-    }
-  } else if (center_y == 0 || center_y == height) {
-    int idx_left, idx_right;
-    if (center_y == 0) {
-      idx_left = get_index(center_x - 1, center_y),
-      idx_right = get_index(center_x, center_y);
-    } else {
-      idx_left = get_index(center_x - 1, center_y - 1),
-      idx_right = get_index(center_x, center_y - 1);
-    }
-    return Eigen::Vector3f(
-               h_rate * data[idx_right] + (1 - h_rate) * data[idx_left],
-               h_rate * data[idx_right + 1] + (1 - h_rate) * data[idx_left + 1],
-               h_rate * data[idx_right + 2] +
-                   (1 - h_rate) * data[idx_left + 1]) /
-           255.0f;
-  } else {
-    int idx[4]{get_index(center_x - 1, center_y), get_index(center_x, center_y),
-               get_index(center_x - 1, center_y - 1),
-               get_index(center_x, center_y - 1)};
-    Eigen::Vector3f color_top{
-        (1 - h_rate) * data[idx[0]] + h_rate * data[idx[1]],
-        (1 - h_rate) * data[idx[0] + 1] + h_rate * data[idx[1] + 1],
-        (1 - h_rate) * data[idx[0] + 2] + h_rate * data[idx[1] + 2]};
-    Eigen::Vector3f color_bottom{
-        (1 - h_rate) * data[idx[2]] + h_rate * data[idx[3]],
-        (1 - h_rate) * data[idx[2] + 1] + h_rate * data[idx[3] + 1],
-        (1 - h_rate) * data[idx[2] + 2] + h_rate * data[idx[3] + 2]};
-    return (v_rate * color_top + (1 - v_rate) * color_bottom) / 255.0f;
-  }
+  int idx[4]{
+      get_index(std::max(0, center_x - 1), std::min(height - 1, center_y)),
+      get_index(std::min(width - 1, center_x), std::min(height - 1, center_y)),
+      get_index(std::max(0, center_x - 1), std::max(0, center_y - 1)),
+      get_index(std::min(width - 1, center_x), std::max(0, center_y - 1))};
+  Eigen::Vector3f color_top{
+      (1 - h_rate) * data[idx[0]] + h_rate * data[idx[1]],
+      (1 - h_rate) * data[idx[0] + 1] + h_rate * data[idx[1] + 1],
+      (1 - h_rate) * data[idx[0] + 2] + h_rate * data[idx[1] + 2]};
+  Eigen::Vector3f color_bottom{
+      (1 - h_rate) * data[idx[2]] + h_rate * data[idx[3]],
+      (1 - h_rate) * data[idx[2] + 1] + h_rate * data[idx[3] + 1],
+      (1 - h_rate) * data[idx[2] + 2] + h_rate * data[idx[3] + 2]};
+  return (v_rate * color_top + (1 - v_rate) * color_bottom) / 255.0f;
+}
+float Texture::get_noise(float u, float v) {
+  // 取噪声就不搞双线性插值了
+  int x = std::clamp((int)(u * width), 0, width - 1);
+  int y = std::clamp((int)(v * height), 0, height - 1);
+  return data[get_index(x, y)] / 255.0f;
 }
 Texture::~Texture() { delete[] data; }

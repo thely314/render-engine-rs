@@ -1,5 +1,6 @@
 #include "Model.hpp"
 #include "global.hpp"
+#include "light.hpp"
 #include <Scene.hpp>
 #include <algorithm>
 #include <cmath>
@@ -11,14 +12,36 @@
 #include <stb_image_write.h>
 Scene::Scene(int width, int height)
     : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, zNear(-0.1f),
-      zFar(-1000.0f), width(width), height(height) {
-  frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
-  z_buffer.resize(width * height, INFINITY);
-}
+      zFar(-1000.0f), width(width), height(height),
+      penumbra_mask_width(ceil(width / 4.0f)),
+      penumbra_mask_height(ceil(height / 4.0f)) {}
 
 void Scene::start_render() {
+  frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
+  pos_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
+  normal_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
+  diffuse_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
+  specular_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
+  glow_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
+  z_buffer.resize(width * height, INFINITY);
+  penumbra_marks.resize(lights.size());
+  for (auto &&penumbra_mark : penumbra_marks) {
+    penumbra_mark.resize(penumbra_mask_width * penumbra_mask_height,
+                         light::BRIGHT);
+    std::fill(penumbra_mark.begin(), penumbra_mark.end(), light::BRIGHT);
+  }
   std::fill(frame_buffer.begin(), frame_buffer.end(),
             Eigen::Vector3f{0.7f, 0.7f, 0.7f});
+  std::fill(pos_buffer.begin(), pos_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
+  std::fill(normal_buffer.begin(), normal_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
+  std::fill(diffuse_buffer.begin(), diffuse_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
+  std::fill(specular_buffer.begin(), specular_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
+  std::fill(glow_buffer.begin(), glow_buffer.end(),
+            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
   std::fill(z_buffer.begin(), z_buffer.end(), INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
@@ -35,21 +58,63 @@ void Scene::start_render() {
   for (auto obj : objects) {
     obj->to_NDC(width, height);
   }
-  int thread_num = std::min(width, maximum_thread_num);
-  int thread_render_row_num = ceil(width * 1.0 / maximum_thread_num);
+  int thread_num = std::min(height, maximum_thread_num);
+  int thread_render_row_num = ceil(height * 1.0f / thread_num);
   std::vector<std::thread> threads;
-  auto render_lambda = [](Scene &scene, const Eigen::Matrix<float, 4, 4> &mvp,
-                          int start_row, int block_row) {
+  auto rasterization_lambda = [](Scene &scene,
+                                 const Eigen::Matrix<float, 4, 4> &mvp,
+                                 int start_row, int block_row) {
     for (auto obj : scene.objects) {
       obj->rasterization_block(mvp, scene, *obj, start_row, 0, block_row,
                                scene.width);
     }
   };
   for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(render_lambda, std::ref(*this), std::ref(mvp),
+    threads.emplace_back(rasterization_lambda, std::ref(*this), std::ref(mvp),
                          thread_render_row_num * i, thread_render_row_num);
   }
-  threads.emplace_back(render_lambda, std::ref(*this), std::ref(mvp),
+  threads.emplace_back(rasterization_lambda, std::ref(*this), std::ref(mvp),
+                       thread_render_row_num * (thread_num - 1),
+                       height - thread_render_row_num * (thread_num - 1));
+  for (auto &&thread : threads) {
+    thread.join();
+  }
+  threads.clear();
+  int penumbra_mask_thread_num =
+      std::min(penumbra_mask_height, maximum_thread_num);
+  int penumbra_mask_thread_render_row_num =
+      ceil(penumbra_mask_height * 1.0f / penumbra_mask_thread_num);
+  auto penumbra_mask_lambda = [](Scene &scene, int start_row, int block_row) {
+    for (int i = 0; i != scene.lights.size(); ++i) {
+      scene.lights[i]->generate_penumbra_mask_block(
+          scene, scene.penumbra_marks[i], start_row, 0, block_row,
+          scene.penumbra_mask_width);
+    }
+  };
+  for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
+    threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
+                         penumbra_mask_thread_render_row_num * i,
+                         penumbra_mask_thread_render_row_num);
+  }
+  threads.emplace_back(
+      penumbra_mask_lambda, std::ref(*this),
+      penumbra_mask_thread_render_row_num * (penumbra_mask_thread_num - 1),
+      penumbra_mask_height -
+          penumbra_mask_thread_render_row_num * (penumbra_mask_thread_num - 1));
+  for (auto &&thread : threads) {
+    thread.join();
+  }
+  threads.clear();
+  auto render_lambda = [](Scene &scene, int start_row, int block_row) {
+    for (auto obj : scene.objects) {
+      scene.shader(scene, start_row, 0, block_row, scene.width);
+    }
+  };
+  for (int i = 0; i < thread_num - 1; ++i) {
+    threads.emplace_back(render_lambda, std::ref(*this),
+                         thread_render_row_num * i, thread_render_row_num);
+  }
+  threads.emplace_back(render_lambda, std::ref(*this),
                        thread_render_row_num * (thread_num - 1),
                        height - thread_render_row_num * (thread_num - 1));
   for (auto &&thread : threads) {
@@ -80,8 +145,12 @@ void Scene::save_to_file(std::string filename) {
   stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
 }
 
-int Scene::get_index(int x, int y) { return width * (height - y - 1) + x; }
-
+int Scene::get_index(int x, int y) const {
+  return width * (height - y - 1) + x;
+}
+int Scene::get_penumbra_mask_index(int x, int y) const {
+  return penumbra_mask_width * (penumbra_mask_height - y - 1) + x;
+}
 void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
   this->eye_pos = eye_pos;
 }
@@ -94,14 +163,19 @@ void Scene::set_zNear(float zNear) { this->zNear = zNear; }
 
 void Scene::set_zFar(float zFar) { this->zFar = zFar; }
 
-void Scene::set_width(int width) { this->width = width; }
+void Scene::set_width(int width) {
+  this->width = width;
+  penumbra_mask_width = ceil(width / 4.0f);
+}
 
-void Scene::set_height(int height) { this->height = height; }
+void Scene::set_height(int height) {
+  this->height = height;
+  penumbra_mask_height = ceil(height / 4.0f);
+}
 
 void Scene::set_shader(
-    const std::function<Eigen::Vector3f(Vertex_rasterization &, const Scene &,
-                                        const Model &, const Eigen::Vector3f &,
-                                        const Eigen::Vector3f &)> &shader) {
+    const std::function<void(Scene &Scene, int start_row, int start_col,
+                             int block_row, int block_col)> &shader) {
   this->shader = shader;
 }
 
@@ -116,10 +190,8 @@ float Scene::get_zFar() const { return zFar; }
 int Scene::get_width() const { return width; }
 
 int Scene::get_height() const { return height; }
-
-std::function<Eigen::Vector3f(Vertex_rasterization &, const Scene &,
-                              const Model &, const Eigen::Vector3f &,
-                              const Eigen::Vector3f &)>
+std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
+                   int block_col)>
 Scene::get_shader() const {
   return shader;
 }

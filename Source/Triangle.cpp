@@ -144,6 +144,9 @@ void Triangle_rasterization::rasterization_block(
           Eigen::Vector3f point_pos = alpha * vertexs[0].pos +
                                       beta * vertexs[1].pos +
                                       gamma * vertexs[2].pos;
+          scene.pos_buffer[scene.get_index(x, y)] = alpha * vertexs[0].pos +
+                                                    beta * vertexs[1].pos +
+                                                    gamma * vertexs[2].pos;
           Eigen::Vector3f point_normal =
               (alpha * vertexs[0].normal + beta * vertexs[1].normal +
                gamma * vertexs[2].normal)
@@ -151,13 +154,48 @@ void Triangle_rasterization::rasterization_block(
           Eigen::Vector2f point_uv = alpha * vertexs[0].texture_coords +
                                      beta * vertexs[1].texture_coords +
                                      gamma * vertexs[2].texture_coords;
-          Vertex_rasterization point{point_pos,
-                                     point_normal,
-                                     {0.5f, 0.5f, 0.5f},
-                                     point_uv,
-                                     {0.0f, 0.0f, 0.0f, 0.0f}};
-          scene.frame_buffer[scene.get_index(x, y)] =
-              scene.shader(point, scene, model, tangent, binormal);
+          if (model.get_texture(Model::NORMAL_TEXTURE) != nullptr) {
+            Eigen::Vector3f TBN_normal =
+                (2.0f * model.get_texture(Model::NORMAL_TEXTURE)
+                            ->get_color(point_uv.x(), point_uv.y()) -
+                 Eigen::Vector3f{1.0f, 1.0f, 1.0f})
+                    .normalized();
+            Eigen::Vector3f tangent_orthogonal =
+                (tangent - tangent.dot(point_normal) * point_normal)
+                    .normalized();
+            Eigen::Vector3f binormal_orthogonal =
+                point_normal.cross(tangent_orthogonal).normalized();
+            if (binormal_orthogonal.dot(binormal) <= 0) {
+              binormal_orthogonal = -binormal_orthogonal;
+            }
+            Eigen::Matrix<float, 3, 3> TBN;
+            TBN << tangent_orthogonal, binormal_orthogonal, point_normal;
+            scene.normal_buffer[scene.get_index(x, y)] =
+                (TBN * TBN_normal).normalized();
+          } else {
+            scene.normal_buffer[scene.get_index(x, y)] = point_normal;
+          }
+          if (model.get_texture(Model::DIFFUSE_TEXTURE) != nullptr) {
+            scene.diffuse_buffer[scene.get_index(x, y)] =
+                model.get_texture(Model::DIFFUSE_TEXTURE)
+                    ->get_color(point_uv.x(), point_uv.y());
+          } else {
+            scene.diffuse_buffer[scene.get_index(x, y)] = {0.5f, 0.5f, 0.5f};
+          }
+          if (model.get_texture(Model::SPECULAR_TEXTURE) != nullptr) {
+            scene.specular_buffer[scene.get_index(x, y)] =
+                model.get_texture(Model::SPECULAR_TEXTURE)
+                    ->get_color(point_uv.x(), point_uv.y());
+          } else {
+            scene.specular_buffer[scene.get_index(x, y)] = {0.8f, 0.8f, 0.8f};
+          }
+          if (model.get_texture(Model::GLOW_TEXTURE) != nullptr) {
+            scene.glow_buffer[scene.get_index(x, y)] =
+                model.get_texture(Model::GLOW_TEXTURE)
+                    ->get_color(point_uv.x(), point_uv.y());
+          } else {
+            scene.glow_buffer[scene.get_index(x, y)] = {0.0f, 0.0f, 0.0f};
+          }
         }
       }
     }
@@ -212,6 +250,7 @@ void Triangle_rasterization::rasterization_shadow_map_block(
   }
 }
 void Triangle_rasterization::to_NDC(int width, int height) {
+  // z不需要齐次化
   vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
   vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
 
