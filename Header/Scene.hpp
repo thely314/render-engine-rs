@@ -4,10 +4,20 @@
 #include "Triangle.hpp"
 #include "global.hpp"
 #include "light.hpp"
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+constexpr float gaussian_blur_horizontal[9] = {
+    0.01621622, 0.05405405, 0.12162162, 0.19459459, 0.22702703,
+    0.19459459, 0.12162162, 0.05405405, 0.01621622};
+constexpr float gaussian_blur_vertical[5] = {0.07027027, 0.31621622, 0.22702703,
+                                             0.31621622, 0.07027027};
+constexpr float gaussian_blur_horizontal_offset[9] = {-4, -3, -2, -1, 0,
+                                                      1,  2,  3,  4};
+constexpr float gaussian_blur_vertical_offset[5] = {-3.23076923, -1.38461538, 0,
+                                                    1.38461538, 3.23076923};
 
 class Scene {
 public:
@@ -31,6 +41,7 @@ public:
   void set_zFar(float zFar);
   void set_width(int width);
   void set_height(int height);
+  void set_penumbra_mask_status(bool status);
   void set_shader(
       const std::function<void(Scene &Scene, int start_row, int start_col,
                                int block_row, int block_col)> &shader);
@@ -40,6 +51,7 @@ public:
   float get_zFar() const;
   int get_width() const;
   int get_height() const;
+  bool get_penumbra_mask_status() const;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
   get_shader() const;
@@ -52,9 +64,14 @@ public:
   std::vector<float> z_buffer;
   std::vector<std::shared_ptr<Model>> objects;
   std::vector<std::shared_ptr<light>> lights;
-  std::vector<std::vector<light::SHADOW_STATUS>> penumbra_marks;
+  std::vector<std::vector<light::SHADOW_STATUS>> penumbra_masks;
+  std::vector<std::vector<float>> penumbra_masks_blur;
 
 private:
+  std::vector<float>
+  penumbra_mask_blur_horizontal(const std::vector<float> &input);
+  std::vector<float>
+  penumbra_mask_blur_vertical(const std::vector<float> &input);
   Eigen::Vector3f eye_pos;
   Eigen::Vector3f view_dir;
   float zNear;
@@ -63,6 +80,7 @@ private:
   int height;
   int penumbra_mask_width;
   int penumbra_mask_height;
+  bool enable_penumbra_mask;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
       shader;

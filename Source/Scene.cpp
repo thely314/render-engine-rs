@@ -14,7 +14,7 @@ Scene::Scene(int width, int height)
     : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, zNear(-0.1f),
       zFar(-1000.0f), width(width), height(height),
       penumbra_mask_width(ceil(width / 4.0f)),
-      penumbra_mask_height(ceil(height / 4.0f)) {}
+      penumbra_mask_height(ceil(height / 4.0f)), enable_penumbra_mask(false) {}
 
 void Scene::start_render() {
   frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
@@ -24,11 +24,19 @@ void Scene::start_render() {
   specular_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
   glow_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
   z_buffer.resize(width * height, INFINITY);
-  penumbra_marks.resize(lights.size());
-  for (auto &&penumbra_mark : penumbra_marks) {
-    penumbra_mark.resize(penumbra_mask_width * penumbra_mask_height,
-                         light::BRIGHT);
-    std::fill(penumbra_mark.begin(), penumbra_mark.end(), light::BRIGHT);
+  if (enable_penumbra_mask) {
+    penumbra_masks.resize(lights.size());
+    penumbra_masks_blur.resize(lights.size());
+    for (auto &&penumbra_mask : penumbra_masks) {
+      penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height,
+                           light::BRIGHT);
+      std::fill(penumbra_mask.begin(), penumbra_mask.end(), light::BRIGHT);
+    }
+    for (auto &&penumbra_mask_blur : penumbra_masks_blur) {
+      penumbra_mask_blur.resize(penumbra_mask_width * penumbra_mask_height,
+                                light::BRIGHT);
+      std::fill(penumbra_mask_blur.begin(), penumbra_mask_blur.end(), 0.0f);
+    }
   }
   std::fill(frame_buffer.begin(), frame_buffer.end(),
             Eigen::Vector3f{0.7f, 0.7f, 0.7f});
@@ -80,31 +88,42 @@ void Scene::start_render() {
     thread.join();
   }
   threads.clear();
-  int penumbra_mask_thread_num =
-      std::min(penumbra_mask_height, maximum_thread_num);
-  int penumbra_mask_thread_render_row_num =
-      ceil(penumbra_mask_height * 1.0f / penumbra_mask_thread_num);
-  auto penumbra_mask_lambda = [](Scene &scene, int start_row, int block_row) {
-    for (int i = 0; i != scene.lights.size(); ++i) {
-      scene.lights[i]->generate_penumbra_mask_block(
-          scene, scene.penumbra_marks[i], start_row, 0, block_row,
-          scene.penumbra_mask_width);
+  if (enable_penumbra_mask) {
+    int penumbra_mask_thread_num =
+        std::min(penumbra_mask_height, maximum_thread_num);
+    int penumbra_mask_thread_render_row_num =
+        ceil(penumbra_mask_height * 1.0f / penumbra_mask_thread_num);
+    auto penumbra_mask_lambda = [](Scene &scene, int start_row, int block_row) {
+      for (int i = 0; i != scene.lights.size(); ++i) {
+        scene.lights[i]->generate_penumbra_mask_block(
+            scene, scene.penumbra_masks[i], scene.penumbra_masks_blur[i],
+            start_row, 0, block_row, scene.penumbra_mask_width);
+      }
+    };
+    for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
+      threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
+                           penumbra_mask_thread_render_row_num * i,
+                           penumbra_mask_thread_render_row_num);
     }
-  };
-  for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
-    threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
-                         penumbra_mask_thread_render_row_num * i,
-                         penumbra_mask_thread_render_row_num);
+    threads.emplace_back(
+        penumbra_mask_lambda, std::ref(*this),
+        penumbra_mask_thread_render_row_num * (penumbra_mask_thread_num - 1),
+        penumbra_mask_height - penumbra_mask_thread_render_row_num *
+                                   (penumbra_mask_thread_num - 1));
+    for (auto &&thread : threads) {
+      thread.join();
+    }
+    threads.clear();
   }
-  threads.emplace_back(
-      penumbra_mask_lambda, std::ref(*this),
-      penumbra_mask_thread_render_row_num * (penumbra_mask_thread_num - 1),
-      penumbra_mask_height -
-          penumbra_mask_thread_render_row_num * (penumbra_mask_thread_num - 1));
-  for (auto &&thread : threads) {
-    thread.join();
+  for (int i = 0; i < penumbra_masks.size(); ++i) {
+    penumbra_masks_blur[i] = penumbra_mask_blur_vertical(
+        penumbra_mask_blur_horizontal(penumbra_masks_blur[i]));
+    for (int j = 0; j < penumbra_mask_width * penumbra_mask_height; ++j) {
+      if (penumbra_masks_blur[i][j] > EPSILON) {
+        penumbra_masks[i][j] = light::PENUMBRA;
+      }
+    }
   }
-  threads.clear();
   auto render_lambda = [](Scene &scene, int start_row, int block_row) {
     for (auto obj : scene.objects) {
       scene.shader(scene, start_row, 0, block_row, scene.width);
@@ -173,6 +192,10 @@ void Scene::set_height(int height) {
   penumbra_mask_height = ceil(height / 4.0f);
 }
 
+void Scene::set_penumbra_mask_status(bool status) {
+  enable_penumbra_mask = status;
+}
+
 void Scene::set_shader(
     const std::function<void(Scene &Scene, int start_row, int start_col,
                              int block_row, int block_col)> &shader) {
@@ -190,8 +213,85 @@ float Scene::get_zFar() const { return zFar; }
 int Scene::get_width() const { return width; }
 
 int Scene::get_height() const { return height; }
+
+bool Scene::get_penumbra_mask_status() const { return enable_penumbra_mask; }
+
 std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                    int block_col)>
 Scene::get_shader() const {
   return shader;
+}
+std::vector<float>
+Scene::penumbra_mask_blur_horizontal(const std::vector<float> &input) {
+  std::vector<float> output(penumbra_mask_width * penumbra_mask_height, 0.0f);
+  auto linearal_sample = [&](float u, float v) {
+    u = std::clamp(u, 0.0f, width * 1.0f);
+    v = std::clamp(v, 0.0f, height * 1.0f);
+    int center_x = round(u), center_y = round(v);
+    float h_rate = u + 0.5f - center_x, v_rate = v + 0.5f - center_y;
+    int idx[4]{get_penumbra_mask_index(
+                   std::clamp(center_x - 1, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x - 1, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y - 1, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y - 1, 0, penumbra_mask_height - 1))};
+    float mask_top = (1 - h_rate) * input[idx[0]] + h_rate * input[idx[1]];
+    float mask_bottom = (1 - h_rate) * input[idx[2]] + h_rate * input[idx[3]];
+    return (v_rate * mask_top + (1 - v_rate) * mask_bottom);
+  };
+  for (int y = 0; y < penumbra_mask_height; ++y) {
+    for (int x = 0; x < penumbra_mask_width; ++x) {
+      int idx = get_penumbra_mask_index(x, y);
+      for (int i = 0; i < 9; ++i) {
+        output[idx] +=
+            gaussian_blur_horizontal[i] *
+            linearal_sample(x + 0.5f + gaussian_blur_horizontal_offset[i],
+                            y + 0.5f);
+      }
+    }
+  }
+  return output;
+}
+std::vector<float>
+Scene::penumbra_mask_blur_vertical(const std::vector<float> &input) {
+  std::vector<float> output(penumbra_mask_width * penumbra_mask_height);
+  auto linearal_sample = [&](float u, float v) {
+    u = std::clamp(u, 0.0f, width * 1.0f);
+    v = std::clamp(v, 0.0f, height * 1.0f);
+    int center_x = round(u), center_y = round(v);
+    float h_rate = u + 0.5f - center_x, v_rate = v + 0.5f - center_y;
+    int idx[4]{get_penumbra_mask_index(
+                   std::clamp(center_x - 1, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x - 1, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y - 1, 0, penumbra_mask_height - 1)),
+               get_penumbra_mask_index(
+                   std::clamp(center_x, 0, penumbra_mask_width - 1),
+                   std::clamp(center_y - 1, 0, penumbra_mask_height - 1))};
+    float mask_top = (1 - h_rate) * input[idx[0]] + h_rate * input[idx[1]];
+    float mask_bottom = (1 - h_rate) * input[idx[2]] + h_rate * input[idx[3]];
+    return (v_rate * mask_top + (1 - v_rate) * mask_bottom);
+  };
+  for (int y = 0; y < penumbra_mask_height; ++y) {
+    for (int x = 0; x < penumbra_mask_width; ++x) {
+      int idx = get_penumbra_mask_index(x, y);
+      for (int i = 0; i < 5; ++i) {
+        output[idx] +=
+            gaussian_blur_vertical[i] *
+            linearal_sample(x + 0.5f,
+                            y + 0.5f + gaussian_blur_vertical_offset[i]);
+      }
+    }
+  }
+  return output;
 }

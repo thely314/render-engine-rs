@@ -64,28 +64,46 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
       }
       Eigen::Vector3f pos = scene.pos_buffer[idx];
       Eigen::Vector3f normal = scene.normal_buffer[idx];
-      Eigen::Vector3f Ka{0.005f, 0.005f, 0.005f};
+      Eigen::Vector3f Ka = scene.diffuse_buffer[idx];
       Eigen::Vector3f Kd = scene.diffuse_buffer[idx];
       Eigen::Vector3f Ks = scene.specular_buffer[idx];
       Eigen::Vector3f return_color = scene.glow_buffer[idx];
-      Eigen::Vector3f ambient_intensity{10.0f, 10.0f, 10.0f};
+      Eigen::Vector3f ambient_intensity{0.1f, 0.1f, 0.1f};
       for (int i = 0; i != scene.lights.size(); ++i) {
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
+        return_color += ambient;
         float shadow_result = 1.0f;
-        light::SHADOW_STATUS shadow_status =
-            scene
-                .penumbra_marks[i][scene.get_penumbra_mask_index(x / 4, y / 4)];
-        switch (shadow_status) {
-        case light::BRIGHT:
-          break;
-        case light::PENUMBRA:
-          shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
-          break;
-        case light::SHADOW:
-          shadow_result = 0.0f;
-        }
-        if (shadow_result < EPSILON) {
-          continue;
+        if (scene.get_penumbra_mask_status()) {
+          light::SHADOW_STATUS shadow_status =
+              scene.penumbra_masks[i]
+                                  [scene.get_penumbra_mask_index(x / 4, y / 4)];
+          switch (shadow_status) {
+          case light::BRIGHT:
+            break;
+          case light::PENUMBRA: {
+            float random_num = 0.0f;
+            if (scene.lights[i]->get_noisy_texture() != nullptr) {
+              random_num = scene.lights[i]->get_noisy_texture()->get_noise(
+                  x * 1.0f / scene.get_width(), y * 1.0f / scene.get_height());
+            }
+            shadow_result =
+                scene.lights[i]->in_shadow_pcss(pos, normal, random_num);
+            break;
+          }
+          case light::SHADOW:
+            shadow_result = 0.0f;
+          }
+          if (shadow_result < EPSILON) {
+            continue;
+          }
+        } else {
+          float random_num = 0.0f;
+          if (scene.lights[i]->get_noisy_texture() != nullptr) {
+            random_num = scene.lights[i]->get_noisy_texture()->get_noise(
+                x * 1.0f / scene.get_width(), y * 1.0f / scene.get_height());
+          }
+          shadow_result =
+              scene.lights[i]->in_shadow_pcss(pos, normal, random_num);
         }
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
         Eigen::Vector3f light_dir = scene.lights[i]->get_pos() - pos;
@@ -98,7 +116,7 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
         Eigen::Vector3f specular = Ks.cwiseProduct(
             scene.lights[i]->get_intensity() / light_distance_square *
             pow(std::max(0.0f, normal.dot(half_dir)), 150));
-        return_color += (ambient + diffuse + specular) * shadow_result;
+        return_color += (diffuse + specular) * shadow_result;
       }
       scene.frame_buffer[idx] = return_color;
     }
@@ -174,8 +192,9 @@ int main() {
   my_scene.add_light(l1);
   my_scene.set_shader(texture_shader);
   // l1->set_shadow_status(false);
-  l1->set_pcf_poisson_status(true);
-  l1->set_pcss_poisson_status(true);
+  l1->set_pcf_poisson_status(false);
+  l1->set_pcss_poisson_status(false);
+  my_scene.set_penumbra_mask_status(false);
   my_scene.start_render();
   my_scene.save_to_file("output.png");
   // for (int i = 0; i != 36; ++i) {

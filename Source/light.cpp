@@ -4,8 +4,11 @@
 #include "global.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <thread>
+#include <utility>
+#include <vector>
 constexpr float bias_scale = 0.04f; // 经验值
 constexpr int sample_num = 17;
 constexpr float poisson_disk[17][2] = {{-0.94201624, -0.39906216},
@@ -40,6 +43,9 @@ void light::set_intensity(const Eigen::Vector3f &intensity) {
   this->intensity = intensity;
 }
 
+std::shared_ptr<Texture> light::get_noisy_texture() const { return nullptr; }
+void light::set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture) {}
+
 void light::look_at(const Scene &scene) {}
 
 bool light::in_shadow(const Eigen::Vector3f &point_pos,
@@ -48,24 +54,25 @@ bool light::in_shadow(const Eigen::Vector3f &point_pos,
 }
 
 float light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                           const Eigen::Vector3f &normal) {
+                           const Eigen::Vector3f &normal, float random_num) {
   return 1.0f;
 }
 
 float light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                            const Eigen::Vector3f &normal) {
+                            const Eigen::Vector3f &normal, float random_num) {
   return 1.0f;
 }
 
 void light::generate_penumbra_mask_block(
     const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
-    int start_row, int start_col, int block_row, int block_col) {
+    std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
+    int block_row, int block_col) {
   return;
 }
 
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-1000.0f), light_size(0.75f), fov_factor(0.0f),
+      zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
       zbuffer_width(8192), zbuffer_height(8192), enable_shadow(true),
       enable_pcf_poisson(true), enable_pcss_poisson(true),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {}
@@ -180,7 +187,7 @@ bool spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   if (!enable_shadow) {
     return 1.0f;
   }
-  Eigen::Vector4f transform_pos = mvp * pos.homogeneous();
+  Eigen::Vector4f transform_pos = mvp * point_pos.homogeneous();
   if (transform_pos.x() < transform_pos.w() ||
       transform_pos.x() > -transform_pos.w() ||
       transform_pos.y() < transform_pos.w() ||
@@ -195,7 +202,7 @@ bool spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
   int x_to_int = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1);
   int y_to_int = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
-  transform_pos = mv * pos.homogeneous();
+  transform_pos = mv * point_pos.homogeneous();
   float bias =
       std::max(0.2f,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
@@ -206,7 +213,8 @@ bool spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   return true;
 }
 float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                                const Eigen::Vector3f &normal) {
+                                const Eigen::Vector3f &normal,
+                                float random_num) {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -222,13 +230,10 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   }
   transform_pos.x() /= transform_pos.w();
   transform_pos.y() /= transform_pos.w();
-  float random_num = 0.0f;
   Eigen::Matrix<float, 2, 2> random_rotate =
       Eigen::Matrix<float, 2, 2>::Identity();
-  if (noisy_texture != nullptr) {
+  if (random_num > EPSILON) {
     // 为泊松分布启用随机旋转
-    random_num = noisy_texture->get_noise((transform_pos.x() + 1.0f) * 0.5f,
-                                          (transform_pos.y() + 1.0f) * 0.5f);
     float rotate_angle = 2.0f * M_PI * random_num;
     float cos_val = cos(2.0f * M_PI * random_num);
     float sin_val = sin(2.0f * M_PI * random_num);
@@ -246,15 +251,13 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   constexpr int pcf_radius = 1;
   if (pcf_radius < 2 || !enable_pcf_poisson) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
-      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-        for (int x = -pcf_radius; x <= pcf_radius; ++x) {
-          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-            ++pcf_num;
-            if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
-                z_buffer[get_index(center_x + x, center_y + y)]) {
-              ++unshadow_num;
-            }
-          }
+      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+        int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+        int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+        ++pcf_num;
+        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+            z_buffer[get_index(idx_x, idx_y)]) {
+          ++unshadow_num;
         }
       }
     }
@@ -264,20 +267,20 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
       poisson_val = random_rotate * poisson_val;
       int x = roundf(pcf_radius * poisson_val.x()),
           y = roundf(pcf_radius * poisson_val.y());
-      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
-          center_x + x >= 0 && center_x + x < zbuffer_width) {
-        ++pcf_num;
-        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
-            z_buffer[get_index(center_x + x, center_y + y)]) {
-          ++unshadow_num;
-        }
+      int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+      int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+      ++pcf_num;
+      if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+          z_buffer[get_index(idx_x, idx_y)]) {
+        ++unshadow_num;
       }
     }
   }
   return unshadow_num * 1.0f / pcf_num;
 }
 float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                 const Eigen::Vector3f &normal) {
+                                 const Eigen::Vector3f &normal,
+                                 float random_num) {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -292,10 +295,9 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   }
   transform_pos.x() /= transform_pos.w();
   transform_pos.y() /= transform_pos.w();
-  float random_num = 0.0f;
   Eigen::Matrix<float, 2, 2> random_rotate =
       Eigen::Matrix<float, 2, 2>::Identity();
-  if (noisy_texture != nullptr) {
+  if (random_num > EPSILON) {
     // 为泊松分布启用随机旋转
     random_num = noisy_texture->get_noise((transform_pos.x() + 1.0f) * 0.5f,
                                           (transform_pos.y() + 1.0f) * 0.5f);
@@ -321,16 +323,14 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   float block_depth = 0.0f;
   if (pcss_radius < 2 || !enable_pcss_poisson) {
     for (int y = -pcss_radius; y <= pcss_radius; ++y) {
-      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-        for (int x = -pcss_radius; x <= pcss_radius; ++x) {
-          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-            if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
-                z_buffer[get_index(center_x + x, center_y + y)]) {
-              block_depth += z_buffer[get_index(center_x + x, center_y + y)];
-              ++block_num;
-            };
-          }
-        }
+      for (int x = -pcss_radius; x <= pcss_radius; ++x) {
+        int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+        int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
+            z_buffer[get_index(idx_x, idx_y)]) {
+          block_depth += z_buffer[get_index(idx_x, idx_y)];
+          ++block_num;
+        };
       }
     }
   } else {
@@ -339,13 +339,12 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       poisson_val = random_rotate * poisson_val;
       int x = roundf(pcss_radius * poisson_val.x()),
           y = roundf(pcss_radius * poisson_val.y());
-      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
-          center_x + x >= 0 && center_x + x < zbuffer_width) {
-        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
-            z_buffer[get_index(center_x + x, center_y + y)]) {
-          block_depth += z_buffer[get_index(center_x + x, center_y + y)];
-          ++block_num;
-        }
+      int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+      int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+      if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
+          z_buffer[get_index(idx_x, idx_y)]) {
+        block_depth += z_buffer[get_index(idx_x, idx_y)];
+        ++block_num;
       }
     }
   }
@@ -361,15 +360,13 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   int pcf_num = 0, unshadow_num = 0;
   if (pcf_radius < 2 || !enable_pcf_poisson) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
-      if (center_y + y >= 0 && center_y + y < zbuffer_height) {
-        for (int x = -pcf_radius; x <= pcf_radius; ++x) {
-          if (center_x + x >= 0 && center_x + x < zbuffer_width) {
-            ++pcf_num;
-            if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
-                z_buffer[get_index(center_x + x, center_y + y)]) {
-              ++unshadow_num;
-            }
-          }
+      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+        int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+        int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+        ++pcf_num;
+        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+            z_buffer[get_index(idx_x, idx_y)]) {
+          ++unshadow_num;
         }
       }
     }
@@ -379,13 +376,12 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       poisson_val = random_rotate * poisson_val;
       int x = roundf(pcf_radius * poisson_val.x()),
           y = roundf(pcf_radius * poisson_val.y());
-      if (center_y + y >= 0 && center_y + y < zbuffer_height &&
-          center_x + x >= 0 && center_x + x < zbuffer_width) {
-        ++pcf_num;
-        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
-            z_buffer[get_index(center_x + x, center_y + y)]) {
-          ++unshadow_num;
-        }
+      int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+      int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+      ++pcf_num;
+      if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+          z_buffer[get_index(idx_x, idx_y)]) {
+        ++unshadow_num;
       }
     }
   }
@@ -394,10 +390,64 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
 
 void spot_light::generate_penumbra_mask_block(
     const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
-    int start_row, int start_col, int block_row, int block_col) {
+    std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
+    int block_row, int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
-      penumbra_mask[scene.get_penumbra_mask_index(x, y)] = PENUMBRA;
+      x = std::clamp(x, 0, scene.penumbra_mask_width - 1);
+      y = std::clamp(y, 0, scene.penumbra_mask_height - 1);
+      int start_x = 4 * x, start_y = 4 * y;
+      int pcf_num = 0, unshadow_num = 0;
+      // 进行4x4PCF运算
+      for (int v = start_y; v < start_y + 4; ++v) {
+        for (int u = start_x; u < start_x + 4; ++u) {
+          u = std::clamp(u, 0, scene.width - 1);
+          v = std::clamp(v, 0, scene.height - 1);
+          int idx = scene.get_index(u, v);
+          if (scene.z_buffer[idx] < INFINITY) {
+            ++pcf_num;
+            Eigen::Vector3f point_pos = scene.pos_buffer[idx];
+            Eigen::Vector3f normal = scene.normal_buffer[idx];
+            Eigen::Vector4f transform_pos = mvp * point_pos.homogeneous();
+            if (transform_pos.x() < transform_pos.w() ||
+                transform_pos.x() > -transform_pos.w() ||
+                transform_pos.y() < transform_pos.w() ||
+                transform_pos.y() > -transform_pos.w() ||
+                transform_pos.z() < transform_pos.w() ||
+                transform_pos.z() > -transform_pos.w()) {
+              continue;
+            }
+            transform_pos.x() /= transform_pos.w();
+            transform_pos.y() /= transform_pos.w();
+            transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
+            transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
+            int x_to_int =
+                std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1);
+            int y_to_int =
+                std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
+            transform_pos = mv * point_pos.homogeneous();
+            float bias =
+                std::max(0.2f,
+                         1.0f * (1.0f -
+                                 (pos - point_pos).normalized().dot(normal))) *
+                bias_scale * fov_factor * -transform_pos.z() * 512.0f /
+                zbuffer_height;
+            if (transform_pos.z() + bias >
+                z_buffer[get_index(x_to_int, y_to_int)]) {
+              ++unshadow_num;
+            }
+          }
+        }
+      }
+      int idx = scene.get_penumbra_mask_index(x, y);
+      if (pcf_num == 0 || unshadow_num == 0) {
+        penumbra_mask[idx] = SHADOW;
+      } else if (pcf_num == unshadow_num) {
+        penumbra_mask[idx] = BRIGHT;
+      } else {
+        penumbra_mask[idx] = PENUMBRA;
+        penumbra_mask_blur[idx] = 1.0f;
+      }
     }
   }
 }

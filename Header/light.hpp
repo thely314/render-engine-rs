@@ -2,6 +2,7 @@
 #include "Eigen/Core"
 #include "Texture.hpp"
 #include <Eigen/Dense>
+#include <cstdint>
 #include <memory>
 #include <vector>
 struct Vertex;
@@ -21,16 +22,19 @@ public:
   void set_pos(const Eigen::Vector3f &pos);
   Eigen::Vector3f get_intensity() const;
   void set_intensity(const Eigen::Vector3f &intensity);
+  virtual std::shared_ptr<Texture> get_noisy_texture() const;
+  virtual void set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture);
   virtual void look_at(const Scene &);
   virtual bool in_shadow(const Eigen::Vector3f &point_pos,
                          const Eigen::Vector3f &normal);
   virtual float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                              const Eigen::Vector3f &normal);
+                              const Eigen::Vector3f &normal, float random_num);
   virtual float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                               const Eigen::Vector3f &normal);
+                               const Eigen::Vector3f &normal, float random_num);
   virtual void generate_penumbra_mask_block(
       const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
-      int start_row, int start_col, int block_row, int block_col);
+      std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
+      int block_row, int block_col);
   virtual ~light() = default;
 
 protected:
@@ -65,8 +69,9 @@ public:
   void set_pcf_poisson_status(bool status);
   bool get_pcss_poisson_status() const;
   void set_pcss_poisson_status(bool status);
-  std::shared_ptr<Texture> get_noisy_texture() const;
-  void set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture);
+  std::shared_ptr<Texture> get_noisy_texture() const override;
+  void
+  set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture) override;
 
 private:
   Eigen::Vector3f light_dir;
@@ -90,11 +95,13 @@ private:
   bool in_shadow(const Eigen::Vector3f &point_pos,
                  const Eigen::Vector3f &normal) override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                      const Eigen::Vector3f &normal) override;
+                      const Eigen::Vector3f &normal, float random_num) override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                       const Eigen::Vector3f &normal) override;
+                       const Eigen::Vector3f &normal,
+                       float random_num) override;
   void generate_penumbra_mask_block(const Scene &scene,
                                     std::vector<SHADOW_STATUS> &penumbra_mask,
+                                    std::vector<float> &penumbra_mask_blur,
                                     int start_row, int start_col, int block_row,
                                     int block_col) override;
 };
