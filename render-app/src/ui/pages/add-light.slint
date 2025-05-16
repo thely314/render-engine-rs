@@ -1,0 +1,142 @@
+/*
+Page to add a new light.
+*/
+
+import { GroupBox, LineEdit, Button, ComboBox } from "std-widgets.slint";
+import { Styles } from "../mod/style.slint";
+import { Light, LightManage } from "../mod/util.slint";
+
+export component AddLightPage inherits Rectangle {
+    // background: transparent;
+
+    VerticalLayout {
+        alignment: space-around;
+        padding: 10px;
+        
+        Text {
+            text: "Add a new light here.";
+            font-size: Styles.sizes.lg;
+            color: Colors.black;
+        }
+
+        VerticalLayout {
+            spacing: 10px;
+            alignment: center;
+
+            light-name := LineEdit {
+                placeholder-text: "Light Name";
+                width: 100%;
+            }
+
+            type-selector := ComboBox {
+                width: 100%;
+                model: ["Point", "Directional", "Spot"];
+                current-index: 0;
+            }
+
+            // position
+            Text {
+                font-size: Styles.sizes.md*2;
+                text: "position";
+            }
+            HorizontalLayout {
+                alignment: space-between;
+                padding-left: 10px;
+                padding-right: 10px;
+
+                positionX := LineEdit {
+                    placeholder-text: "Light Position X";
+                    width: 75%;
+                    text: "0";
+                }
+                positionY := LineEdit {
+                    placeholder-text: "Light Position Y";
+                    width: 75%;
+                    text: "0";
+                }
+                positionZ := LineEdit {
+                    placeholder-text: "Light Position Z";
+                    width: 75%;
+                    text: "0";
+                }
+            }
+
+            // color
+            Text {
+                font-size: Styles.sizes.md*2;
+                text: "color(RGB)";
+            }
+            HorizontalLayout {
+                alignment: space-between;
+                padding-left: 10px;
+                padding-right: 10px;
+
+                colorR := LineEdit {
+                    placeholder-text: "R";
+                    width: 75%;
+                    text: "0";
+                }
+                colorG := LineEdit {
+                    placeholder-text: "G";
+                    width: 75%;
+                    text: "0";
+                }
+                colorB := LineEdit {
+                    placeholder-text: "B";
+                    width: 75%;
+                    text: "0";
+                }
+            }
+
+            // forward
+            Text {
+                font-size: Styles.sizes.md*2;
+                text: "forward vector";
+            }
+            HorizontalLayout {
+                alignment: space-between;
+                padding-left: 10px;
+                padding-right: 10px;
+
+                forwardX := LineEdit {
+                    placeholder-text: "Light Position X";
+                    width: 75%;
+                    text: "0";
+                }
+                forwardY := LineEdit {
+                    placeholder-text: "Light Position Y";
+                    width: 75%;
+                    text: "0";
+                }
+                forwardZ := LineEdit {
+                    placeholder-text: "Light Position Z";
+                    width: 75%;
+                    text: "0";
+                }
+            }
+
+            Button {
+                text: "Add Light!";
+                width: 75%;
+
+                clicked => {
+                    LightManage.add_light(
+                        {
+                            name: light-name.text,
+                            type: type-selector.current-value,
+                            position-x: positionX.text.to-float(),
+                            position-y: positionY.text.to-float(),
+                            position-z: positionZ.text.to-float(),
+                            color-R: colorR.text.to-float(),
+                            color-G: colorG.text.to-float(),
+                            color-B: colorB.text.to-float(),
+                            forward-x: forwardX.text.to-float(),
+                            forward-y: forwardY.text.to-float(),
+                            forward-z: forwardZ.text.to-float(),
+                        }
+                    );
+                }
+            }
+        }
+    }
+}

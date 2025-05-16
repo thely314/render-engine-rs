@@ -1,0 +1,55 @@
+/*
+GUI for user input
+
+right side of the window:
+add the lights, include setting the light position, type, name(as identifier)
+change the light properties(position, type, name, etc.)
+delete the light
+left side of the window:
+the place to render the image
+*/
+
+import { AppWindow } from "widgets/app-window.slint";
+import { Panel } from "widgets/panel.slint";
+import { SideBar } from "widgets/side-bar.slint";
+import { GroupBox, LineEdit, Button } from "std-widgets.slint";
+import { UiState } from "mod/global.slint";
+
+export component MainWindow inherits AppWindow {
+    in-out property page <=> UiState.page;
+
+    title: "Render-Engine-rs Application";
+    preferred-width: 1080px;
+    preferred-height: 600px;
+    min-width: 800px;
+    min-height: 540px;
+
+    in-out property <bool> main-window-maximized <=> self.maximized;
+    in-out property <bool> main-window-minimized <=> self.minimized;
+
+    callback main-window-resize(string);
+
+    resize(e) => {
+        main-window-resize(e);
+    }
+
+    HorizontalLayout {
+        // padding-left: 20px;
+        // padding-right: 20px;
+
+        Rectangle {
+            min-width: 500px;
+            min-height: 540px;
+            background: Colors.lightgray;
+            border-radius: 10px;
+            border-color: Colors.black;
+            border-width: 2px;
+        }
+
+        VerticalLayout {
+            height: 100%;
+            Panel {}
+            SideBar {}
+        }
+    }
+}

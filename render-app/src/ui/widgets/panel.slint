@@ -1,0 +1,28 @@
+/*
+The panel widget for user to control the lights.
+*/
+
+import { AddLightPage } from "../pages/add-light.slint";
+import { ManageLightPage } from "../pages/manage-light.slint";
+import { UiState } from "../mod/global.slint";
+
+export component Panel inherits Rectangle {
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    clip: true;
+    background: transparent;
+    min-width: 280px;
+    min-height: 450px;
+    max-width: 300px;
+
+    if (UiState.page == "add"):
+        AddLightPage {
+            width: 100%;
+            height: 100%;
+    }
+    if (UiState.page != "add"):
+        ManageLightPage {
+            width: 100%;
+            height: 100%;
+    }
+}

@@ -2,6 +2,12 @@
 name = "render-app"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
+slint = "1.11.0"
 render-lib = { path = "../render-lib" }
+rdev = "0.5.3"
+
+[build-dependencies]
+slint-build = "1.11.0"

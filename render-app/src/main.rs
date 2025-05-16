@@ -1,10 +1,13 @@
-#![warn(missing_docs)]
 /*!
 A binary program that displays rendering results, with a movable camera.
 */
+#[warn(missing_docs)]
 mod camera;
-mod ui;
 
-fn main() {
-    
+slint::include_modules!();
+
+fn main() -> Result<(), slint::PlatformError> {
+   let main_window = MainWindow::new()?;
+
+   main_window.run()
 }
