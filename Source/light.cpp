@@ -4,31 +4,56 @@
 #include "global.hpp"
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <thread>
-#include <utility>
 #include <vector>
 constexpr float bias_scale = 0.04f; // 经验值
-constexpr int sample_num = 17;
-constexpr float poisson_disk[17][2] = {{-0.94201624, -0.39906216},
-                                       {0.94558609, -0.76890725},
-                                       {-0.094184101, -0.92938870},
-                                       {0.34495938, 0.29387760},
-                                       {-0.91588581, 0.45771432},
-                                       {-0.81544232, -0.87912464},
-                                       {-0.38277543, 0.27676845},
-                                       {0.97484398, 0.75648379},
-                                       {0.44323325, -0.97511554},
-                                       {0.53742981, -0.47373420},
-                                       {-0.26496911, -0.41893023},
-                                       {0.79197514, 0.19090188},
-                                       {-0.24188840, 0.99706507},
-                                       {-0.81409955, 0.91437590},
-                                       {0.19984126, 0.78641367},
-                                       {0.14383161, -0.14100790},
-                                       {0.0f, 0.0f}};
-// 最后一项不是泊松分布，是为了修正泊松分布的误差而加入的项
+constexpr int sample_num = 64;
+constexpr float fibonacci_spiral_direction[64][2]{
+    {1.000000f, 0.000000f},   {-0.737369f, 0.675490f},
+    {0.087426f, -0.996171f},  {0.608439f, 0.793601f},
+    {-0.984713f, -0.174182f}, {0.843755f, -0.536728f},
+    {-0.259604f, 0.965715f},  {-0.460907f, -0.887448f},
+    {0.939321f, 0.343039f},   {-0.924346f, 0.381556f},
+    {0.423846f, -0.905734f},  {0.299284f, 0.954164f},
+    {-0.865211f, -0.501408f}, {0.976676f, -0.214719f},
+    {-0.575129f, 0.818062f},  {-0.128511f, -0.991708f},
+    {0.764649f, 0.644447f},   {-0.999146f, 0.041318f},
+    {0.708829f, -0.705380f},  {-0.046191f, 0.998933f},
+    {-0.640709f, -0.767784f}, {0.991069f, 0.133347f},
+    {-0.820858f, 0.571132f},  {0.219481f, -0.975617f},
+    {0.497181f, 0.867647f},   {-0.952693f, -0.303935f},
+    {0.907791f, -0.419423f},  {-0.386061f, 0.922473f},
+    {-0.338452f, -0.940984f}, {0.885189f, 0.465231f},
+    {-0.966970f, 0.254890f},  {0.540838f, -0.841127f},
+    {0.169376f, 0.985551f},   {-0.790623f, -0.612303f},
+    {0.996586f, -0.082565f},  {-0.679079f, 0.734065f},
+    {0.004878f, -0.999988f},  {0.671885f, 0.740655f},
+    {-0.995733f, -0.092284f}, {0.796559f, -0.604560f},
+    {-0.178984f, 0.983852f},  {-0.532606f, -0.846364f},
+    {0.964437f, 0.264312f},   {-0.889686f, 0.456572f},
+    {0.347617f, -0.937637f},  {0.377043f, 0.926196f},
+    {-0.903656f, -0.428259f}, {0.955613f, -0.294626f},
+    {-0.505622f, 0.862755f},  {-0.209952f, -0.977712f},
+    {0.815247f, 0.579113f},   {-0.992323f, 0.123671f},
+    {0.648169f, -0.761496f},  {0.036443f, 0.999336f},
+    {-0.701914f, -0.712262f}, {0.998695f, 0.051064f},
+    {-0.770900f, 0.636956f},  {0.138180f, -0.990407f},
+    {0.567121f, 0.823635f},   {-0.974534f, -0.224238f},
+    {0.870062f, -0.492942f},  {-0.308579f, 0.951199f},
+    {-0.414989f, -0.909826f}, {0.920579f, 0.390557f},
+};
+// 斐波那契圆盘分布,全部为方向向量
+Eigen::Vector2f compute_fibonacci_spiral_disk_sample_uniform(
+    int sample_index, float sample_count_inverse, float clumpExponent,
+    float sample_dist_norm) {
+  sample_dist_norm =
+      powf((float)sample_index * sample_count_inverse, 0.5f * clumpExponent);
+  return sample_dist_norm *
+         Eigen::Vector2f{fibonacci_spiral_direction[sample_index][0],
+                         fibonacci_spiral_direction[sample_index][1]};
+}
+
 light::light() : pos(0.0f, 0.0f, 0.0f), intensity(0.0f, 0.0f, 0.0f) {}
 light::light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity)
     : pos(pos), intensity(intensity) {}
@@ -43,9 +68,6 @@ void light::set_intensity(const Eigen::Vector3f &intensity) {
   this->intensity = intensity;
 }
 
-std::shared_ptr<Texture> light::get_noisy_texture() const { return nullptr; }
-void light::set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture) {}
-
 void light::look_at(const Scene &scene) {}
 
 bool light::in_shadow(const Eigen::Vector3f &point_pos,
@@ -54,12 +76,12 @@ bool light::in_shadow(const Eigen::Vector3f &point_pos,
 }
 
 float light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                           const Eigen::Vector3f &normal, float random_num) {
+                           const Eigen::Vector3f &normal) {
   return 1.0f;
 }
 
 float light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                            const Eigen::Vector3f &normal, float random_num) {
+                            const Eigen::Vector3f &normal) {
   return 1.0f;
 }
 
@@ -73,8 +95,8 @@ void light::generate_penumbra_mask_block(
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      zbuffer_width(8192), zbuffer_height(8192), enable_shadow(true),
-      enable_pcf_poisson(true), enable_pcss_poisson(true),
+      zbuffer_width(2048), zbuffer_height(2048), enable_shadow(true),
+      enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()) {}
 
 Eigen::Vector3f spot_light::get_light_dir() const { return light_dir; }
@@ -115,25 +137,20 @@ bool spot_light::get_shadow_status() const { return enable_shadow; }
 
 void spot_light::set_shadow_status(bool status) { enable_shadow = status; }
 
-bool spot_light::get_pcf_poisson_status() const { return enable_pcf_poisson; }
-
-void spot_light::set_pcf_poisson_status(bool status) {
-  enable_pcf_poisson = status;
+bool spot_light::get_pcf_sample_accelerate_status() const {
+  return enable_pcf_sample_accelerate;
 }
 
-bool spot_light::get_pcss_poisson_status() const { return enable_pcss_poisson; }
-
-void spot_light::set_pcss_poisson_status(bool status) {
-  enable_pcss_poisson = status;
+void spot_light::set_pcf_sample_accelerate_status(bool status) {
+  enable_pcf_sample_accelerate = status;
 }
 
-std::shared_ptr<Texture> spot_light::get_noisy_texture() const {
-  return noisy_texture;
+bool spot_light::get_pcss_sample_accelerate_status() const {
+  return enable_pcss_sample_accelerate;
 }
 
-void spot_light::set_noisy_texture(
-    const std::shared_ptr<Texture> &noisy_texture) {
-  this->noisy_texture = noisy_texture;
+void spot_light::set_pcss_sample_accelerate_status(bool status) {
+  enable_pcss_sample_accelerate = status;
 }
 
 void spot_light::look_at(const Scene &scene) {
@@ -213,8 +230,7 @@ bool spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   return true;
 }
 float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                                const Eigen::Vector3f &normal,
-                                float random_num) {
+                                const Eigen::Vector3f &normal) {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -232,13 +248,6 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   transform_pos.y() /= transform_pos.w();
   Eigen::Matrix<float, 2, 2> random_rotate =
       Eigen::Matrix<float, 2, 2>::Identity();
-  if (random_num > EPSILON) {
-    // 为泊松分布启用随机旋转
-    float rotate_angle = 2.0f * M_PI * random_num;
-    float cos_val = cos(2.0f * M_PI * random_num);
-    float sin_val = sin(2.0f * M_PI * random_num);
-    random_rotate << cos_val, -sin_val, sin_val, cos_val;
-  }
   transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
   transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
   int pcf_num = 0, unshadow_num = 0;
@@ -249,7 +258,7 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
       bias_scale * fov_factor * -transform_pos.z() * 512.0f / zbuffer_height;
   constexpr int pcf_radius = 1;
-  if (pcf_radius < 2 || !enable_pcf_poisson) {
+  if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -262,11 +271,12 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
       }
     }
   } else {
+    float sample_num_inverse = 1.0f / sample_num;
     for (int i = 0; i < sample_num; ++i) {
-      Eigen::Vector2f poisson_val{poisson_disk[i][0], poisson_disk[i][1]};
-      poisson_val = random_rotate * poisson_val;
-      int x = roundf(pcf_radius * poisson_val.x()),
-          y = roundf(pcf_radius * poisson_val.y());
+      Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+          i, sample_num_inverse, 1.0f, 0.0f);
+      int x = roundf(pcf_radius * sample_dir.x()),
+          y = roundf(pcf_radius * sample_dir.y());
       int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
       int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
       ++pcf_num;
@@ -279,8 +289,7 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   return unshadow_num * 1.0f / pcf_num;
 }
 float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                 const Eigen::Vector3f &normal,
-                                 float random_num) {
+                                 const Eigen::Vector3f &normal) {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -297,15 +306,6 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   transform_pos.y() /= transform_pos.w();
   Eigen::Matrix<float, 2, 2> random_rotate =
       Eigen::Matrix<float, 2, 2>::Identity();
-  if (random_num > EPSILON) {
-    // 为泊松分布启用随机旋转
-    random_num = noisy_texture->get_noise((transform_pos.x() + 1.0f) * 0.5f,
-                                          (transform_pos.y() + 1.0f) * 0.5f);
-    float rotate_angle = 2.0f * M_PI * random_num;
-    float cos_val = cos(2.0f * M_PI * random_num);
-    float sin_val = sin(2.0f * M_PI * random_num);
-    random_rotate << cos_val, -sin_val, sin_val, cos_val;
-  }
   transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
   transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
   int center_x = transform_pos.x(), center_y = transform_pos.y();
@@ -316,12 +316,15 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       bias_scale * fov_factor * -transform_pos.z() * 512.0f / zbuffer_height;
 
   int pcss_radius =
-      std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() *
-                            light_size / fov_factor * zbuffer_height / 64.0f));
-  // pcss半径越大阴影过渡越平滑
+      std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() * 1.0f /
+                            32.0f * light_size / fov_factor * zbuffer_height));
+  // 魔数是试出来的
+  // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
+  // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
+  // 所以pcss_radius决定了半影的面积，决定了有多少像素会参与到下面的pcf计算
   int block_num = 0;
   float block_depth = 0.0f;
-  if (pcss_radius < 2 || !enable_pcss_poisson) {
+  if (pcss_radius < 2 || !enable_pcss_sample_accelerate) {
     for (int y = -pcss_radius; y <= pcss_radius; ++y) {
       for (int x = -pcss_radius; x <= pcss_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -334,11 +337,12 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       }
     }
   } else {
+    float sample_num_inverse = 1.0f / sample_num;
     for (int i = 0; i < sample_num; ++i) {
-      Eigen::Vector2f poisson_val{poisson_disk[i][0], poisson_disk[i][1]};
-      poisson_val = random_rotate * poisson_val;
-      int x = roundf(pcss_radius * poisson_val.x()),
-          y = roundf(pcss_radius * poisson_val.y());
+      Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+          i, sample_num_inverse, 1.0f, 0.0f);
+      int x = roundf(pcss_radius * sample_dir.x()),
+          y = roundf(pcss_radius * sample_dir.y());
       int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
       int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
       if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
@@ -356,9 +360,16 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   float penumbra = (transform_pos.z() - block_depth) / block_depth * light_size;
   int pcf_radius = std::max(1.0f, roundf(penumbra * 0.5f * zbuffer_width /
                                          (-transform_pos.z() * fov_factor)));
+  // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
+  // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
+  // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变
+  // 我们认为按着正确的过渡速度,应该在一定的距离之后，半影才彻底弱化为无影
+  // 但是penumbra_mask会砍半影面积，导致在给定距离内无法过渡到无影状态
+  // 看上去就像影子在边缘很突兀的消失了，因为在边缘阴影还没弱到足够的程度
+  // 解决方法是砍pcf_radius让阴影过渡的更快，但是这会导致阴影比真实的要硬
   pcf_radius = std::max(1, pcf_radius);
   int pcf_num = 0, unshadow_num = 0;
-  if (pcf_radius < 2 || !enable_pcf_poisson) {
+  if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -371,11 +382,12 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       }
     }
   } else {
+    float sample_num_inverse = 1.0f / sample_num;
     for (int i = 0; i < sample_num; ++i) {
-      Eigen::Vector2f poisson_val{poisson_disk[i][0], poisson_disk[i][1]};
-      poisson_val = random_rotate * poisson_val;
-      int x = roundf(pcf_radius * poisson_val.x()),
-          y = roundf(pcf_radius * poisson_val.y());
+      Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+          i, sample_num_inverse, 2.0f - (sample_num / 64.0f), 0.0f);
+      int x = roundf(pcf_radius * sample_dir.x()),
+          y = roundf(pcf_radius * sample_dir.y());
       int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
       int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
       ++pcf_num;
@@ -392,6 +404,9 @@ void spot_light::generate_penumbra_mask_block(
     const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
     std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
     int block_row, int block_col) {
+  if (!enable_shadow) {
+    return;
+  }
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       x = std::clamp(x, 0, scene.penumbra_mask_width - 1);

@@ -4,7 +4,6 @@
 #include "Triangle.hpp"
 #include "global.hpp"
 #include "light.hpp"
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -18,14 +17,20 @@ constexpr float gaussian_blur_horizontal_offset[9] = {-4, -3, -2, -1, 0,
                                                       1,  2,  3,  4};
 constexpr float gaussian_blur_vertical_offset[5] = {-3.23076923, -1.38461538, 0,
                                                     1.38461538, 3.23076923};
-
+// 高斯模糊的半径最好要结合实际的分辨率和摄像机到物体的距离来计算
+// 但是我懒，所以不写,直接把半径写死在9x9
+// 而且高斯模糊的开销很大，不上mipmap效率可能还不如把mask关了，要高效率还要手写mipmap，太累
+// 毕竟我连纹理那块都没上mipmap只上了双线性插值
+// 如果真的想改我会去调OpenCV的,就算用HLSL写起码还有封好的mipmap
 class Scene {
-public:
   friend struct Triangle;
   friend struct Triangle_rasterization;
   friend struct Model;
   friend struct light;
   friend struct spot_light;
+
+public:
+  enum SHADOW_METHOD { PCF, PCSS };
   Scene(int width, int height);
   ~Scene() = default;
   void start_render();
@@ -42,6 +47,7 @@ public:
   void set_width(int width);
   void set_height(int height);
   void set_penumbra_mask_status(bool status);
+  void set_shadow_method(SHADOW_METHOD method);
   void set_shader(
       const std::function<void(Scene &Scene, int start_row, int start_col,
                                int block_row, int block_col)> &shader);
@@ -52,6 +58,7 @@ public:
   int get_width() const;
   int get_height() const;
   bool get_penumbra_mask_status() const;
+  SHADOW_METHOD get_shadow_method() const;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
   get_shader() const;
@@ -81,6 +88,7 @@ private:
   int penumbra_mask_width;
   int penumbra_mask_height;
   bool enable_penumbra_mask;
+  SHADOW_METHOD shadow_method;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
       shader;

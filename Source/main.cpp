@@ -68,7 +68,7 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
       Eigen::Vector3f Kd = scene.diffuse_buffer[idx];
       Eigen::Vector3f Ks = scene.specular_buffer[idx];
       Eigen::Vector3f return_color = scene.glow_buffer[idx];
-      Eigen::Vector3f ambient_intensity{0.1f, 0.1f, 0.1f};
+      Eigen::Vector3f ambient_intensity{0.05f, 0.05f, 0.05f};
       for (int i = 0; i != scene.lights.size(); ++i) {
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
         return_color += ambient;
@@ -81,13 +81,14 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
           case light::BRIGHT:
             break;
           case light::PENUMBRA: {
-            float random_num = 0.0f;
-            if (scene.lights[i]->get_noisy_texture() != nullptr) {
-              random_num = scene.lights[i]->get_noisy_texture()->get_noise(
-                  x * 1.0f / scene.get_width(), y * 1.0f / scene.get_height());
+            switch (scene.get_shadow_method()) {
+            case Scene::PCF:
+              shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
+              break;
+            case Scene::PCSS:
+              shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
+              break;
             }
-            shadow_result =
-                scene.lights[i]->in_shadow_pcss(pos, normal, random_num);
             break;
           }
           case light::SHADOW:
@@ -97,13 +98,14 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
             continue;
           }
         } else {
-          float random_num = 0.0f;
-          if (scene.lights[i]->get_noisy_texture() != nullptr) {
-            random_num = scene.lights[i]->get_noisy_texture()->get_noise(
-                x * 1.0f / scene.get_width(), y * 1.0f / scene.get_height());
+          switch (scene.get_shadow_method()) {
+          case Scene::PCF:
+            shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
+            break;
+          case Scene::PCSS:
+            shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
+            break;
           }
-          shadow_result =
-              scene.lights[i]->in_shadow_pcss(pos, normal, random_num);
         }
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
         Eigen::Vector3f light_dir = scene.lights[i]->get_pos() - pos;
@@ -186,20 +188,18 @@ int main() {
   l1->set_pos({10, 10, 10});
   l1->set_intensity({250, 250, 250});
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  auto noisy_texture =
-      std::make_shared<Texture>("../models/noisy_background.png", 1);
-  l1->set_noisy_texture(noisy_texture);
   my_scene.add_light(l1);
   my_scene.set_shader(texture_shader);
   // l1->set_shadow_status(false);
-  l1->set_pcf_poisson_status(false);
-  l1->set_pcss_poisson_status(false);
+  l1->set_pcf_sample_accelerate_status(true);
+  l1->set_pcss_sample_accelerate_status(true);
   my_scene.set_penumbra_mask_status(false);
+  my_scene.set_shadow_method(Scene::PCSS);
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  // for (int i = 0; i != 36; ++i) {
-  //   my_scene.start_render();
-  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
-  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  // }
+  for (int i = 0; i != 36; ++i) {
+    my_scene.start_render();
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
+    model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  }
 }

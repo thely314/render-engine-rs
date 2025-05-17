@@ -1,9 +1,5 @@
 #pragma once
-#include "Eigen/Core"
-#include "Texture.hpp"
 #include <Eigen/Dense>
-#include <cstdint>
-#include <memory>
 #include <vector>
 struct Vertex;
 struct Vertex_rasterization;
@@ -22,15 +18,13 @@ public:
   void set_pos(const Eigen::Vector3f &pos);
   Eigen::Vector3f get_intensity() const;
   void set_intensity(const Eigen::Vector3f &intensity);
-  virtual std::shared_ptr<Texture> get_noisy_texture() const;
-  virtual void set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture);
   virtual void look_at(const Scene &);
   virtual bool in_shadow(const Eigen::Vector3f &point_pos,
                          const Eigen::Vector3f &normal);
   virtual float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                              const Eigen::Vector3f &normal, float random_num);
+                              const Eigen::Vector3f &normal);
   virtual float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                               const Eigen::Vector3f &normal, float random_num);
+                               const Eigen::Vector3f &normal);
   virtual void generate_penumbra_mask_block(
       const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
       std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
@@ -65,13 +59,10 @@ public:
   void set_height(int height);
   bool get_shadow_status() const;
   void set_shadow_status(bool status);
-  bool get_pcf_poisson_status() const;
-  void set_pcf_poisson_status(bool status);
-  bool get_pcss_poisson_status() const;
-  void set_pcss_poisson_status(bool status);
-  std::shared_ptr<Texture> get_noisy_texture() const override;
-  void
-  set_noisy_texture(const std::shared_ptr<Texture> &noisy_texture) override;
+  bool get_pcf_sample_accelerate_status() const;
+  void set_pcf_sample_accelerate_status(bool status);
+  bool get_pcss_sample_accelerate_status() const;
+  void set_pcss_sample_accelerate_status(bool status);
 
 private:
   Eigen::Vector3f light_dir;
@@ -84,21 +75,19 @@ private:
   int zbuffer_width;
   int zbuffer_height;
   bool enable_shadow;
-  bool enable_pcf_poisson;
-  bool enable_pcss_poisson;
+  bool enable_pcf_sample_accelerate;
+  bool enable_pcss_sample_accelerate;
   Eigen::Matrix<float, 4, 4> mvp;
   Eigen::Matrix<float, 4, 4> mv;
   std::vector<float> z_buffer;
-  std::shared_ptr<Texture> noisy_texture;
   int get_index(int x, int y);
   void look_at(const Scene &) override;
   bool in_shadow(const Eigen::Vector3f &point_pos,
                  const Eigen::Vector3f &normal) override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                      const Eigen::Vector3f &normal, float random_num) override;
+                      const Eigen::Vector3f &normal) override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                       const Eigen::Vector3f &normal,
-                       float random_num) override;
+                       const Eigen::Vector3f &normal) override;
   void generate_penumbra_mask_block(const Scene &scene,
                                     std::vector<SHADOW_STATUS> &penumbra_mask,
                                     std::vector<float> &penumbra_mask_blur,

@@ -1,3 +1,4 @@
+#include "Eigen/Core"
 #include "Model.hpp"
 #include "global.hpp"
 #include "light.hpp"
@@ -10,11 +11,13 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>
 #include <stb_image_write.h>
+
 Scene::Scene(int width, int height)
     : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, zNear(-0.1f),
       zFar(-1000.0f), width(width), height(height),
       penumbra_mask_width(ceil(width / 4.0f)),
-      penumbra_mask_height(ceil(height / 4.0f)), enable_penumbra_mask(false) {}
+      penumbra_mask_height(ceil(height / 4.0f)), enable_penumbra_mask(false),
+      shadow_method(PCSS) {}
 
 void Scene::start_render() {
   frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
@@ -167,9 +170,11 @@ void Scene::save_to_file(std::string filename) {
 int Scene::get_index(int x, int y) const {
   return width * (height - y - 1) + x;
 }
+
 int Scene::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * (penumbra_mask_height - y - 1) + x;
 }
+
 void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
   this->eye_pos = eye_pos;
 }
@@ -196,6 +201,8 @@ void Scene::set_penumbra_mask_status(bool status) {
   enable_penumbra_mask = status;
 }
 
+void Scene::set_shadow_method(SHADOW_METHOD method) { shadow_method = method; }
+
 void Scene::set_shader(
     const std::function<void(Scene &Scene, int start_row, int start_col,
                              int block_row, int block_col)> &shader) {
@@ -216,11 +223,14 @@ int Scene::get_height() const { return height; }
 
 bool Scene::get_penumbra_mask_status() const { return enable_penumbra_mask; }
 
+Scene::SHADOW_METHOD Scene::get_shadow_method() const { return shadow_method; }
+
 std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                    int block_col)>
 Scene::get_shader() const {
   return shader;
 }
+
 std::vector<float>
 Scene::penumbra_mask_blur_horizontal(const std::vector<float> &input) {
   std::vector<float> output(penumbra_mask_width * penumbra_mask_height, 0.0f);
