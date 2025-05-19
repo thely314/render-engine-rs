@@ -28,6 +28,7 @@ class Scene {
   friend struct Model;
   friend struct light;
   friend struct spot_light;
+  friend struct directional_light;
 
 public:
   enum SHADOW_METHOD { PCF, PCSS };
@@ -79,6 +80,11 @@ private:
   penumbra_mask_blur_horizontal(const std::vector<float> &input);
   std::vector<float>
   penumbra_mask_blur_vertical(const std::vector<float> &input);
+  std::vector<float>
+  penumbra_mask_box_blur_horizontal(const std::vector<float> &input,
+                                    int radius);
+  std::vector<float>
+  penumbra_mask_box_blur_vertical(const std::vector<float> &input, int radius);
   Eigen::Vector3f eye_pos;
   Eigen::Vector3f view_dir;
   float zNear;

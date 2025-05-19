@@ -73,40 +73,49 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
         return_color += ambient;
         float shadow_result = 1.0f;
-        if (scene.get_penumbra_mask_status()) {
-          light::SHADOW_STATUS shadow_status =
-              scene.penumbra_masks[i]
-                                  [scene.get_penumbra_mask_index(x / 4, y / 4)];
-          switch (shadow_status) {
-          case light::BRIGHT:
-            break;
-          case light::PENUMBRA: {
-            switch (scene.get_shadow_method()) {
-            case Scene::PCF:
-              shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
-              break;
-            case Scene::PCSS:
-              shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
-              break;
-            }
-            break;
-          }
-          case light::SHADOW:
-            shadow_result = 0.0f;
-          }
-          if (shadow_result < EPSILON) {
-            continue;
-          }
-        } else {
-          switch (scene.get_shadow_method()) {
-          case Scene::PCF:
-            shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
-            break;
-          case Scene::PCSS:
-            shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
-            break;
-          }
-        }
+        // if (scene.penumbra_masks[i][scene.get_penumbra_mask_index(
+        //         x / 4, y / 4)] == light::PENUMBRA) {
+        //   return_color = {1.0f, 1.0f, 1.0f};
+        // } else {
+        //   return_color = {0.0f, 0.0f, 0.0f};
+        // }
+        // break;
+        // if (scene.get_penumbra_mask_status()) {
+        //   light::SHADOW_STATUS shadow_status =
+        //       scene.penumbra_masks[i]
+        //                           [scene.get_penumbra_mask_index(x / 4, y /
+        //                           4)];
+        //   switch (shadow_status) {
+        //   case light::BRIGHT:
+        //     break;
+        //   case light::PENUMBRA: {
+        //     switch (scene.get_shadow_method()) {
+        //     case Scene::PCF:
+        //       shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
+        //       break;
+        //     case Scene::PCSS:
+        //       shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
+        //       break;
+        //     }
+        //     break;
+        //   }
+        //   case light::SHADOW:
+        //     shadow_result = 0.0f;
+        //   }
+        //   if (shadow_result < EPSILON) {
+        //     continue;
+        //   }
+        // } else {
+        //   switch (scene.get_shadow_method()) {
+        //   case Scene::PCF:
+        //     shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
+        //     break;
+        //   case Scene::PCSS:
+        //     shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
+        //     break;
+        //   }
+        // }
+        shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
         Eigen::Vector3f light_dir = scene.lights[i]->get_pos() - pos;
         float light_distance_square = light_dir.dot(light_dir);
@@ -155,8 +164,8 @@ int main() {
       std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
   model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  model->set_scale(2.5f);
-  // model->set_pos({0.0f, -2.45f, 0.0f});
+  // model->set_scale(2.5f);
+  model->set_pos({0.0f, -2.45f, 0.0f});
   Vertex floor_vertex[4];
   floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
@@ -184,22 +193,30 @@ int main() {
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-100.0f);
-  auto l1 = std::make_shared<spot_light>();
-  l1->set_pos({10, 10, 10});
-  l1->set_intensity({250, 250, 250});
-  l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  my_scene.add_light(l1);
+  // auto l1 = std::make_shared<spot_light>();
+  // l1->set_pos({10, 10, 10});
+  // l1->set_intensity({250, 250, 250});
+  // l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
+  // l1->set_pcf_sample_accelerate_status(true);
+  // l1->set_pcss_sample_accelerate_status(true);
+  auto l2 = std::make_shared<directional_light>();
+  l2->set_pos({10, 10, 10});
+  l2->set_intensity({250, 250, 250});
+  l2->set_light_dir((model->get_pos() - l2->get_pos()).normalized());
+  l2->set_pcf_sample_accelerate_status(false);
+  l2->set_pcss_sample_accelerate_status(false);
+  // my_scene.add_light(l1);
+  my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
   // l1->set_shadow_status(false);
-  l1->set_pcf_sample_accelerate_status(true);
-  l1->set_pcss_sample_accelerate_status(true);
-  my_scene.set_penumbra_mask_status(false);
+  my_scene.set_penumbra_mask_status(true);
   my_scene.set_shadow_method(Scene::PCSS);
+  // model->modeling(get_model_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }

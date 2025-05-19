@@ -51,6 +51,10 @@ private:
                                       spot_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override {}
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      directional_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override {}
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
 };
@@ -107,6 +111,10 @@ private:
                            int block_row, int block_col) override;
   void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
                                       spot_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override;
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      directional_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);

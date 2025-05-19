@@ -1,6 +1,7 @@
 #include "Model.hpp"
 #include "Texture.hpp"
 #include "Triangle.hpp"
+#include "light.hpp"
 #include <memory>
 
 void Model::set_pos(const Eigen::Vector3f &pos) {
@@ -94,6 +95,19 @@ void Model::rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp,
 void Model::rasterization_shadow_map_block(
     const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
     int start_col, int block_row, int block_col) {
+  for (auto &&obj : sub_models) {
+    obj->rasterization_shadow_map_block(mvp, light, start_row, start_col,
+                                        block_row, block_col);
+  }
+  for (auto &&obj : clip_triangles) {
+    obj.rasterization_shadow_map_block(mvp, light, start_row, start_col,
+                                       block_row, block_col);
+  }
+}
+
+void Model::rasterization_shadow_map_block(
+    const Eigen::Matrix<float, 4, 4> &mvp, directional_light &light,
+    int start_row, int start_col, int block_row, int block_col) {
   for (auto &&obj : sub_models) {
     obj->rasterization_shadow_map_block(mvp, light, start_row, start_col,
                                         block_row, block_col);

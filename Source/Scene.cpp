@@ -118,9 +118,14 @@ void Scene::start_render() {
     }
     threads.clear();
   }
+  int box_blur_radius = 4.0f * std::max(width, height) / 1024.0f;
   for (int i = 0; i < penumbra_masks.size(); ++i) {
-    penumbra_masks_blur[i] = penumbra_mask_blur_vertical(
-        penumbra_mask_blur_horizontal(penumbra_masks_blur[i]));
+    // penumbra_masks_blur[i] = penumbra_mask_blur_vertical(
+    //     penumbra_mask_blur_horizontal(penumbra_masks_blur[i]));
+    penumbra_masks_blur[i] = penumbra_mask_box_blur_vertical(
+        penumbra_mask_box_blur_horizontal(penumbra_masks_blur[i],
+                                          box_blur_radius),
+        box_blur_radius);
     for (int j = 0; j < penumbra_mask_width * penumbra_mask_height; ++j) {
       if (penumbra_masks_blur[i][j] > EPSILON) {
         penumbra_masks[i][j] = light::PENUMBRA;
@@ -300,6 +305,40 @@ Scene::penumbra_mask_blur_vertical(const std::vector<float> &input) {
             gaussian_blur_vertical[i] *
             linearal_sample(x + 0.5f,
                             y + 0.5f + gaussian_blur_vertical_offset[i]);
+      }
+    }
+  }
+  return output;
+}
+std::vector<float>
+Scene::penumbra_mask_box_blur_horizontal(const std::vector<float> &input,
+                                         int radius) {
+  std::vector<float> output(penumbra_mask_width * penumbra_mask_height);
+  for (int y = 0; y < penumbra_mask_height; ++y) {
+    for (int x = 0; x < penumbra_mask_width; ++x) {
+      int idx = get_penumbra_mask_index(x, y);
+      float coefficient = 1.0f / (2 * radius + 1);
+      for (int i = -radius; i <= radius; ++i) {
+        output[idx] += coefficient *
+                       input[get_penumbra_mask_index(
+                           std::clamp(x + i, 0, penumbra_mask_width - 1), y)];
+      }
+    }
+  }
+  return output;
+}
+std::vector<float>
+Scene::penumbra_mask_box_blur_vertical(const std::vector<float> &input,
+                                       int radius) {
+  std::vector<float> output(penumbra_mask_width * penumbra_mask_height);
+  for (int y = 0; y < penumbra_mask_height; ++y) {
+    for (int x = 0; x < penumbra_mask_width; ++x) {
+      int idx = get_penumbra_mask_index(x, y);
+      float coefficient = 1.0f / (2 * radius + 1);
+      for (int i = -radius; i <= radius; ++i) {
+        output[idx] += coefficient *
+                       input[get_penumbra_mask_index(
+                           x, std::clamp(y + i, 0, penumbra_mask_height - 1))];
       }
     }
   }

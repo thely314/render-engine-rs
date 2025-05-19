@@ -64,3 +64,4 @@ struct Triangle;
 struct Triangle_rasterization;
 struct light;
 struct spot_light;
+struct directional_light;

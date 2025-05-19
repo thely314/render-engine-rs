@@ -16,6 +16,7 @@ class Model : public Object {
   friend struct Scene;
   friend struct light;
   friend struct spot_light;
+  friend struct directional_light;
 
 public:
   static constexpr int TEXTURE_NUM = 4;
@@ -46,6 +47,10 @@ private:
                            int block_row, int block_col) override;
   void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
                                       spot_light &light, int start_row,
+                                      int start_col, int block_row,
+                                      int block_col) override;
+  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
+                                      directional_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);
