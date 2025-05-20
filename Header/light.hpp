@@ -39,6 +39,10 @@ constexpr float fibonacci_spiral_direction[64][2]{
     {-0.414989f, -0.909826f}, {0.920579f, 0.390557f},
 };
 // 斐波那契圆盘分布,全部为方向向量
+// 出于提高采样质量的目的，可以以帧数做种生成一个随机数，然后把分布按照随机数的角度旋转
+// 这种做法被称为temporal jitter,
+// 原理是当两帧的时间差很小时，人眼会把阴影叠起来，从而模拟了更高采样数的效果
+//  但是由于软光栅帧率太差，用不了这种方法，更多的优化方案还是等学了DX12再做吧
 inline Eigen::Vector2f compute_fibonacci_spiral_disk_sample_uniform(
     int sample_index, float sample_count_inverse, float clumpExponent,
     float sample_dist_norm) {

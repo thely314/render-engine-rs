@@ -7,7 +7,7 @@ constexpr int spot_light_sample_num = 16;
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      zbuffer_width(8192), zbuffer_height(8192), enable_shadow(true),
+      zbuffer_width(2048), zbuffer_height(2048), enable_shadow(true),
       enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()),
       mv(Eigen::Matrix<float, 4, 4>::Identity()) {}

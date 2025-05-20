@@ -1,12 +1,14 @@
 #include "Scene.hpp"
 #include "light.hpp"
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <thread>
-constexpr float directional_light_bias_scale = 20.0f;
-constexpr int directional_light_sample_num = 16;
+constexpr float directional_light_bias_scale = 10.0f;
+constexpr int directional_light_sample_num = 64;
 directional_light::directional_light()
-    : light(), light_dir(0.0f, 0.0f, -1.0f), view_width(100.0f),
-      view_height(100.0f), angular_diameter(1.0f), zNear(-0.1f), zFar(-1000.0f),
+    : light(), light_dir(0.0f, 0.0f, -1.0f), view_width(50.0f),
+      view_height(50.0f), angular_diameter(3.0f), zNear(-0.1f), zFar(-1000.0f),
       pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
       enable_shadow(true), enable_pcf_sample_accelerate(true),
       enable_pcss_sample_accelerate(true),
@@ -211,7 +213,112 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
 }
 
 float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                        const Eigen::Vector3f &normal) {}
+                                        const Eigen::Vector3f &normal) {
+  if (!enable_shadow) {
+    return 1.0f;
+  }
+  Eigen::Vector4f transform_pos = mvp * point_pos.homogeneous();
+  if (transform_pos.x() < transform_pos.w() ||
+      transform_pos.x() > -transform_pos.w() ||
+      transform_pos.y() < transform_pos.w() ||
+      transform_pos.y() > -transform_pos.w() ||
+      transform_pos.z() < transform_pos.w() ||
+      transform_pos.z() > -transform_pos.w()) {
+    return 1.0f;
+  }
+  transform_pos.x() /= transform_pos.w();
+  transform_pos.y() /= transform_pos.w();
+  Eigen::Matrix<float, 2, 2> random_rotate =
+      Eigen::Matrix<float, 2, 2>::Identity();
+  transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
+  transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
+  int center_x = transform_pos.x(), center_y = transform_pos.y();
+  transform_pos = mv * point_pos.homogeneous();
+  float bias = directional_light_bias_scale *
+               std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
+               pixel_radius;
+  float light_size_div_distance = tan(M_PI / 360.0f * angular_diameter);
+  int pcss_radius =
+      std::max(1.0f, 10.0f * light_size_div_distance / pixel_radius);
+  // 魔数是试出来的
+  // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
+  // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
+  // 所以pcss_radius决定了半影的面积，决定了有多少像素会参与到下面的pcf计算
+  int block_num = 0;
+  float block_depth = 0.0f;
+  if (pcss_radius < 2 || !enable_pcss_sample_accelerate) {
+    for (int y = -pcss_radius; y <= pcss_radius; ++y) {
+      for (int x = -pcss_radius; x <= pcss_radius; ++x) {
+        int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+        int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
+            z_buffer[get_index(idx_x, idx_y)]) {
+          block_depth += z_buffer[get_index(idx_x, idx_y)];
+          ++block_num;
+        };
+      }
+    }
+  } else {
+    float sample_num_inverse = 1.0f / directional_light_sample_num;
+    for (int i = 0; i < directional_light_sample_num; ++i) {
+      Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+          i, sample_num_inverse, fibonacci_clump_exponent, 0.0f);
+      int x = roundf(pcss_radius * sample_dir.x()),
+          y = roundf(pcss_radius * sample_dir.y());
+      int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+      int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+      if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias <
+          z_buffer[get_index(idx_x, idx_y)]) {
+        block_depth += z_buffer[get_index(idx_x, idx_y)];
+        ++block_num;
+      }
+    }
+  }
+
+  if (block_num == 0 || block_depth > -EPSILON) {
+    return 1.0f;
+  }
+  block_depth /= block_num;
+  float penumbra = (block_depth - transform_pos.z()) * light_size_div_distance;
+  int pcf_radius = std::max(1.0f, roundf(penumbra / pixel_radius));
+  // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
+  // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
+  // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变
+  // 我们认为按着正确的过渡速度,应该在一定的距离之后，半影才彻底弱化为无影
+  // 但是penumbra_mask会砍半影面积，导致在给定距离内无法过渡到无影状态
+  // 看上去就像影子在边缘很突兀的消失了，因为在边缘阴影还没弱到足够的程度
+  // 解决方法是砍pcf_radius让阴影过渡的更快，但是这会导致阴影比真实的要硬
+  int pcf_num = 0, unshadow_num = 0;
+  if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
+    for (int y = -pcf_radius; y <= pcf_radius; ++y) {
+      for (int x = -pcf_radius; x <= pcf_radius; ++x) {
+        int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+        int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+        ++pcf_num;
+        if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+            z_buffer[get_index(idx_x, idx_y)]) {
+          ++unshadow_num;
+        }
+      }
+    }
+  } else {
+    float sample_num_inverse = 1.0f / directional_light_sample_num;
+    for (int i = 0; i < directional_light_sample_num; ++i) {
+      Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+          i, sample_num_inverse, fibonacci_clump_exponent, 0.0f);
+      int x = roundf(pcf_radius * sample_dir.x()),
+          y = roundf(pcf_radius * sample_dir.y());
+      int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
+      int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
+      ++pcf_num;
+      if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
+          z_buffer[get_index(idx_x, idx_y)]) {
+        ++unshadow_num;
+      }
+    }
+  }
+  return unshadow_num * 1.0f / pcf_num;
+}
 
 void directional_light::generate_penumbra_mask_block(
     const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
