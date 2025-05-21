@@ -1,14 +1,16 @@
 #include "Scene.hpp"
 #include "light.hpp"
+#include <algorithm>
 #include <thread>
 
 constexpr float spot_light_bias_scale = 0.04f; // 经验值
-constexpr int spot_light_sample_num = 16;
+constexpr int spot_light_sample_num = 64;
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      zbuffer_width(2048), zbuffer_height(2048), enable_shadow(true),
-      enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
+      pixel_radius(0.0f), zbuffer_width(2048), zbuffer_height(2048),
+      enable_shadow(true), enable_pcf_sample_accelerate(true),
+      enable_pcss_sample_accelerate(true),
       mvp(Eigen::Matrix<float, 4, 4>::Identity()),
       mv(Eigen::Matrix<float, 4, 4>::Identity()) {}
 
@@ -80,7 +82,8 @@ void spot_light::look_at(const Scene &scene) {
   this->mvp = mvp;
   this->mv = view * model;
   constexpr float to_radian = M_PI / 360.0f;
-  fov_factor = tan(to_radian * fov) * std::max(1.0f, aspect_ratio);
+  fov_factor = tan(to_radian * fov);
+  pixel_radius = std::max(1.0f / zbuffer_height, aspect_ratio / zbuffer_width);
   for (auto obj : scene.objects) {
     obj->clip(mvp, mv);
   }
@@ -136,8 +139,8 @@ bool spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   float bias =
       std::max(0.2f,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
-      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f /
-      zbuffer_height;
+      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
+      pixel_radius;
   if (transform_pos.z() + bias > z_buffer[get_index(x_to_int, y_to_int)]) {
     return false;
   }
@@ -170,8 +173,8 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   float bias =
       std::max(0.2f,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
-      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f /
-      zbuffer_height;
+      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
+      pixel_radius;
   constexpr int pcf_radius = 1;
   if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -228,12 +231,12 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   float bias =
       std::max(0.2f,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
-      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f /
-      zbuffer_height;
+      spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
+      pixel_radius;
 
   int pcss_radius =
       std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() * 0.5f /
-                            32.0f * light_size / fov_factor * zbuffer_height));
+                            32.0f * light_size / fov_factor / pixel_radius));
   // 魔数是试出来的
   // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
   // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
@@ -274,8 +277,9 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   }
   block_depth /= block_num;
   float penumbra = (transform_pos.z() - block_depth) / block_depth * light_size;
-  int pcf_radius = std::max(1.0f, roundf(penumbra * 0.5f * zbuffer_width /
-                                         (-transform_pos.z() * fov_factor)));
+  int pcf_radius =
+      std::max(1.0f, roundf(penumbra * 0.5f /
+                            (-transform_pos.z() * fov_factor * pixel_radius)));
   // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
   // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
   // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变
@@ -362,7 +366,7 @@ void spot_light::generate_penumbra_mask_block(
                          1.0f * (1.0f -
                                  (pos - point_pos).normalized().dot(normal))) *
                 spot_light_bias_scale * fov_factor * -transform_pos.z() *
-                512.0f / zbuffer_height;
+                512.0f * pixel_radius;
             if (transform_pos.z() + bias >
                 z_buffer[get_index(x_to_int, y_to_int)]) {
               ++unshadow_num;

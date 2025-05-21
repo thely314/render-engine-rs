@@ -123,6 +123,7 @@ private:
   float zFar;
   float light_size;
   float fov_factor;
+  float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;
   bool enable_shadow;
