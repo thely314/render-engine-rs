@@ -11,7 +11,7 @@ export component AddLightPage inherits Rectangle {
 
     VerticalLayout {
         alignment: space-around;
-        padding: 10px;
+        padding: 5px;
         
         Text {
             text: "Add a new light here.";
@@ -30,7 +30,7 @@ export component AddLightPage inherits Rectangle {
 
             type-selector := ComboBox {
                 width: 100%;
-                model: ["Point", "Directional", "Spot"];
+                model: ["Point", "Directional"];
                 current-index: 0;
             }
 
@@ -46,17 +46,17 @@ export component AddLightPage inherits Rectangle {
 
                 positionX := LineEdit {
                     placeholder-text: "Light Position X";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 positionY := LineEdit {
                     placeholder-text: "Light Position Y";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 positionZ := LineEdit {
                     placeholder-text: "Light Position Z";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
             }
@@ -73,17 +73,17 @@ export component AddLightPage inherits Rectangle {
 
                 colorR := LineEdit {
                     placeholder-text: "R";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 colorG := LineEdit {
                     placeholder-text: "G";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 colorB := LineEdit {
                     placeholder-text: "B";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
             }
@@ -100,17 +100,17 @@ export component AddLightPage inherits Rectangle {
 
                 forwardX := LineEdit {
                     placeholder-text: "Light Position X";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 forwardY := LineEdit {
                     placeholder-text: "Light Position Y";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
                 forwardZ := LineEdit {
                     placeholder-text: "Light Position Z";
-                    width: 75%;
+                    width: 100px;
                     text: "0";
                 }
             }

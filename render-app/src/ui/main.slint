@@ -3,8 +3,7 @@ GUI for user input
 
 right side of the window:
 add the lights, include setting the light position, type, name(as identifier)
-change the light properties(position, type, name, etc.)
-delete the light
+change the light properties(position, type, name, etc.) & delete the light
 left side of the window:
 the place to render the image
 */
@@ -19,13 +18,19 @@ export component MainWindow inherits AppWindow {
     in-out property page <=> UiState.page;
 
     title: "Render-Engine-rs Application";
-    preferred-width: 1080px;
-    preferred-height: 600px;
-    min-width: 800px;
-    min-height: 540px;
+    // preferred-width: 1080px;
+    // preferred-height: 600px;
+    // min-width: 800px;
+    // min-height: 540px;
+    width: 1080px;
+    height: 600px;
+    x: 0;
 
     in-out property <bool> main-window-maximized <=> self.maximized;
     in-out property <bool> main-window-minimized <=> self.minimized;
+
+    // 定义渲染区域（需与后端代码中的尺寸匹配）
+    in-out property<image> render-target: @image-url(""); // 初始为空
 
     callback main-window-resize(string);
 
@@ -34,16 +39,15 @@ export component MainWindow inherits AppWindow {
     }
 
     HorizontalLayout {
-        // padding-left: 20px;
-        // padding-right: 20px;
+        horizontal-stretch: 1;
+        padding: 0;
+        spacing: 0;
 
-        Rectangle {
-            min-width: 500px;
-            min-height: 540px;
-            background: Colors.lightgray;
-            border-radius: 10px;
-            border-color: Colors.black;
-            border-width: 2px;
+        Image {
+            // 绑定到像素缓冲区
+            source: render-target;
+            min-width: 700px;
+            min-height: 600px;
         }
 
         VerticalLayout {
