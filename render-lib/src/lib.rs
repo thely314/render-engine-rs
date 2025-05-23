@@ -4,7 +4,7 @@ The root lib of render-lib.
 */
 pub mod rasterization;
 
-mod util;
+pub mod util;
 
 #[cfg(test)]
 mod test {

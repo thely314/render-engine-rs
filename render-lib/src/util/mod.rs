@@ -1,5 +1,5 @@
 /*!
 Provide the utils for render-lib.
 */
-mod math;
-mod model_loader;
+pub mod math;
+pub mod model_loader;

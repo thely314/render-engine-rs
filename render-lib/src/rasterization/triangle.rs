@@ -1,5 +1,5 @@
+use crate::util::math::EPSILON;
 use std::{clone, default};
-
 pub type Vector2f = nalgebra::Vector2<f32>;
 pub type Vector3f = nalgebra::Vector3<f32>;
 pub type Vector4f = nalgebra::Vector4<f32>;
@@ -113,12 +113,33 @@ impl Triangle {
             verteies: [*v0, *v1, *v2],
         }
     }
-    fn clip(mvp: &Matrix4f, mv: &Matrix4f, output: &mut Vec<TriangleRasterization>) {}
+    fn clip(&self, mvp: &Matrix4f, mv: &Matrix4f, output: &mut Vec<TriangleRasterization>) {
+        let mut mv_pos: [Vector4f; 3] = [Vector4f::default(); 3];
+        for i in 0..3 {
+            mv_pos[i] = mv * (self.verteies[i].pos.to_homogeneous());
+        }
+        let mv_normal = ((mv_pos[1] - mv_pos[0]).xyz()).cross(&(mv_pos[2] - mv_pos[1]).xyz());
+        if mv_normal.z > EPSILON {
+            return;
+        }
+        let mut clip_triangles = vec![TriangleRasterization::from_triangle(self)];
+        for i in 0..3 {
+            clip_triangles[0].verteies[i].transform_pos =
+                mvp * clip_triangles[0].verteies[i].pos.to_homogeneous();
+        }
+        TriangleRasterization::clip_triangles::<2, true>(&mut clip_triangles);
+        TriangleRasterization::clip_triangles::<2, false>(&mut clip_triangles);
+        TriangleRasterization::clip_triangles::<1, true>(&mut clip_triangles);
+        TriangleRasterization::clip_triangles::<1, false>(&mut clip_triangles);
+        TriangleRasterization::clip_triangles::<0, true>(&mut clip_triangles);
+        TriangleRasterization::clip_triangles::<0, false>(&mut clip_triangles);
+        for iter in clip_triangles.into_iter() {
+            output.push(iter);
+        }
+    }
     fn modeling(&mut self, matrix: &Matrix4f) {
         for i in 0..3 {
-            self.verteies[i].pos = (matrix * self.verteies[i].pos.to_homogeneous())
-                .fixed_rows::<3>(0)
-                .into();
+            self.verteies[i].pos = (matrix * self.verteies[i].pos.to_homogeneous()).xyz();
             self.verteies[i].normal = matrix.fixed_view::<3, 3>(0, 0) * self.verteies[i].normal;
         }
     }
@@ -279,14 +300,14 @@ impl TriangleRasterization {
             for j in 0..3 {
                 if IS_LESS {
                     if (output[i].verteies[j].transform_pos[N]
-                        < -output[i].verteies[j].transform_pos.w)
+                        < output[i].verteies[j].transform_pos.w)
                     {
                         vertex_out_cnt += 1;
                         vertex_unavailable[j] = true;
                     }
                 } else {
                     if (output[i].verteies[j].transform_pos[N]
-                        > output[i].verteies[j].transform_pos.w)
+                        > -output[i].verteies[j].transform_pos.w)
                     {
                         vertex_out_cnt += 1;
                         vertex_unavailable[j] = true;
@@ -315,30 +336,30 @@ impl TriangleRasterization {
                         idx[1] = 1;
                         idx[2] = 2;
                     }
-                    let A = &output[i].verteies[idx[0]];
-                    let B = &output[i].verteies[idx[1]];
-                    let C = &output[i].verteies[idx[2]];
-                    let mut t_D: f32 = 0.0;
-                    let mut t_E: f32 = 0.0;
+                    let a = &output[i].verteies[idx[0]];
+                    let b = &output[i].verteies[idx[1]];
+                    let c = &output[i].verteies[idx[2]];
+                    let t_d: f32;
+                    let t_e: f32;
                     if IS_LESS {
-                        t_D = (A.transform_pos[N] + A.transform_pos.w)
-                            / ((A.transform_pos[N] + A.transform_pos.w)
-                                - (C.transform_pos[N] + C.transform_pos.w));
-                        t_E = (B.transform_pos[N] + B.transform_pos.w)
-                            / ((B.transform_pos[N] + B.transform_pos.w)
-                                - (C.transform_pos[N] + C.transform_pos.w));
+                        t_d = (a.transform_pos[N] - a.transform_pos.w)
+                            / ((a.transform_pos[N] - a.transform_pos.w)
+                                - (c.transform_pos[N] - c.transform_pos.w));
+                        t_e = (b.transform_pos[N] - b.transform_pos.w)
+                            / ((b.transform_pos[N] - b.transform_pos.w)
+                                - (c.transform_pos[N] - c.transform_pos.w));
                     } else {
-                        t_D = (A.transform_pos[N] - A.transform_pos.w)
-                            / ((A.transform_pos[N] - A.transform_pos.w)
-                                - (C.transform_pos[N] - C.transform_pos.w));
-                        t_E = (B.transform_pos[N] - B.transform_pos.w)
-                            / ((B.transform_pos[N] - B.transform_pos.w)
-                                - (C.transform_pos[N] - C.transform_pos.w));
+                        t_d = (a.transform_pos[N] + a.transform_pos.w)
+                            / ((a.transform_pos[N] + a.transform_pos.w)
+                                - (c.transform_pos[N] + c.transform_pos.w));
+                        t_e = (b.transform_pos[N] + b.transform_pos.w)
+                            / ((b.transform_pos[N] + b.transform_pos.w)
+                                - (c.transform_pos[N] + c.transform_pos.w));
                     }
-                    let D = (1.0 - t_D) * A + &(t_D * C);
-                    let E = (1.0 - t_E) * B + &(t_E * C);
-                    output.push(TriangleRasterization::new(A, &D, &E));
-                    output[i].verteies[idx[2]] = D;
+                    let d = (1.0 - t_d) * a + &(t_d * c);
+                    let e = (1.0 - t_e) * b + &(t_e * c);
+                    output.push(TriangleRasterization::new(a, &d, &e));
+                    output[i].verteies[idx[2]] = d;
                     if remain_size != i {
                         output[remain_size] = output[i];
                     }
@@ -359,30 +380,30 @@ impl TriangleRasterization {
                         idx[1] = 1;
                         idx[2] = 0;
                     }
-                    let A = &output[i].verteies[idx[0]];
-                    let B = &output[i].verteies[idx[1]];
-                    let C = &output[i].verteies[idx[2]];
-                    let mut t_D: f32 = 0.0;
-                    let mut t_E: f32 = 0.0;
+                    let a = &output[i].verteies[idx[0]];
+                    let b = &output[i].verteies[idx[1]];
+                    let c = &output[i].verteies[idx[2]];
+                    let t_d: f32;
+                    let t_e: f32;
                     if IS_LESS {
-                        t_D = (A.transform_pos[N] + A.transform_pos.w)
-                            / ((A.transform_pos[N] + A.transform_pos.w)
-                                - (B.transform_pos[N] + B.transform_pos.w));
-                        t_E = (A.transform_pos[N] + A.transform_pos.w)
-                            / ((A.transform_pos[N] + A.transform_pos.w)
-                                - (C.transform_pos[N] + C.transform_pos.w));
+                        t_d = (a.transform_pos[N] - a.transform_pos.w)
+                            / ((a.transform_pos[N] - a.transform_pos.w)
+                                - (b.transform_pos[N] - b.transform_pos.w));
+                        t_e = (a.transform_pos[N] - a.transform_pos.w)
+                            / ((a.transform_pos[N] - a.transform_pos.w)
+                                - (c.transform_pos[N] - c.transform_pos.w));
                     } else {
-                        t_D = (A.transform_pos[N] - A.transform_pos.w)
-                            / ((A.transform_pos[N] - A.transform_pos.w)
-                                - (B.transform_pos[N] - B.transform_pos.w));
-                        t_E = (A.transform_pos[N] - A.transform_pos.w)
-                            / ((A.transform_pos[N] - A.transform_pos.w)
-                                - (C.transform_pos[N] - C.transform_pos.w));
+                        t_d = (a.transform_pos[N] + a.transform_pos.w)
+                            / ((a.transform_pos[N] + a.transform_pos.w)
+                                - (b.transform_pos[N] + b.transform_pos.w));
+                        t_e = (a.transform_pos[N] + a.transform_pos.w)
+                            / ((a.transform_pos[N] + a.transform_pos.w)
+                                - (c.transform_pos[N] + c.transform_pos.w));
                     }
-                    let D = (1.0 - t_D) * A + &(t_D * B);
-                    let E = (1.0 - t_E) * A + &(t_E * C);
-                    output[i].verteies[idx[1]] = D;
-                    output[i].verteies[idx[2]] = E;
+                    let d = (1.0 - t_d) * a + &(t_d * b);
+                    let e = (1.0 - t_e) * a + &(t_e * c);
+                    output[i].verteies[idx[1]] = d;
+                    output[i].verteies[idx[2]] = e;
                     if remain_size != i {
                         output[remain_size] = output[i];
                     }
@@ -394,4 +415,31 @@ impl TriangleRasterization {
         output.copy_within(old_size.., remain_size);
         output.truncate(output.len() - old_size + remain_size);
     }
+    pub fn to_NDC(&mut self, width: u32, height: u32) {
+        for i in 0..3 {
+            //z不需要齐次化
+            self.verteies[i].transform_pos.x /= self.verteies[i].transform_pos.w;
+            self.verteies[i].transform_pos.y /= self.verteies[i].transform_pos.w;
+            self.verteies[i].transform_pos.x =
+                (self.verteies[i].transform_pos.x + 1.0) * 0.5 * width as f32;
+            self.verteies[i].transform_pos.y =
+                (self.verteies[i].transform_pos.y + 1.0) * 0.5 * height as f32;
+        }
+    }
+}
+pub fn cal_bary_coord_2d(v0: Vector2f, v1: Vector2f, v2: Vector2f, p: Vector2f) -> (f32, f32, f32) {
+    let ab = v1 - v0;
+    let bc = v2 - v1;
+    let pa = v0 - p;
+    let pb = v1 - p;
+    let sabc = ab.x * bc.y - bc.x * ab.y;
+    let spbc = pb.x * bc.y - bc.x * pb.y;
+    let spab = pa.x * ab.y - ab.x * pa.y;
+    let alpha = spbc / sabc;
+    let gamma = spab / sabc;
+    return (alpha, 1.0 - alpha - gamma, gamma);
+}
+
+pub fn is_inside_triangle(alpha: f32, beta: f32, gamma: f32) -> bool {
+    return alpha > -EPSILON && beta > -EPSILON && gamma > -EPSILON;
 }
