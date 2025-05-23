@@ -1,3 +1,5 @@
+use std::{clone, default};
+
 pub type Vector2f = nalgebra::Vector2<f32>;
 pub type Vector3f = nalgebra::Vector3<f32>;
 pub type Vector4f = nalgebra::Vector4<f32>;
@@ -90,7 +92,7 @@ pub struct Triangle {
 impl Default for Triangle {
     fn default() -> Self {
         Triangle {
-            verteies: [Vertex::default(), Vertex::default(), Vertex::default()],
+            verteies: [Vertex::default(); 3],
         }
     }
 }
@@ -111,9 +113,9 @@ impl Triangle {
             verteies: [*v0, *v1, *v2],
         }
     }
-    fn clip() {}
+    fn clip(mvp: &Matrix4f, mv: &Matrix4f, output: &mut Vec<TriangleRasterization>) {}
     fn modeling(&mut self, matrix: &Matrix4f) {
-        for i in 0..2 {
+        for i in 0..3 {
             self.verteies[i].pos = (matrix * self.verteies[i].pos.to_homogeneous())
                 .fixed_rows::<3>(0)
                 .into();
@@ -226,6 +228,24 @@ pub struct TriangleRasterization {
     pub verteies: [VertexRasterization; 3],
 }
 
+impl Default for TriangleRasterization {
+    fn default() -> Self {
+        TriangleRasterization {
+            verteies: [VertexRasterization::default(); 3],
+        }
+    }
+}
+
+impl Clone for TriangleRasterization {
+    fn clone(&self) -> Self {
+        TriangleRasterization {
+            verteies: [self.verteies[0], self.verteies[1], self.verteies[2]],
+        }
+    }
+}
+
+impl Copy for TriangleRasterization {}
+
 impl TriangleRasterization {
     fn new(v0: &VertexRasterization, v1: &VertexRasterization, v2: &VertexRasterization) -> Self {
         TriangleRasterization {
@@ -247,5 +267,131 @@ impl TriangleRasterization {
                 triangle.verteies[2].pos.to_homogeneous(),
             ),
         )
+    }
+    pub fn clip_triangles<const N: usize, const IS_LESS: bool>(
+        output: &mut Vec<TriangleRasterization>,
+    ) {
+        let old_size: usize = output.len();
+        let mut remain_size: usize = 0;
+        for i in 0..old_size {
+            let mut vertex_out_cnt = 0;
+            let mut vertex_unavailable = [false; 3];
+            for j in 0..3 {
+                if IS_LESS {
+                    if (output[i].verteies[j].transform_pos[N]
+                        < -output[i].verteies[j].transform_pos.w)
+                    {
+                        vertex_out_cnt += 1;
+                        vertex_unavailable[j] = true;
+                    }
+                } else {
+                    if (output[i].verteies[j].transform_pos[N]
+                        > output[i].verteies[j].transform_pos.w)
+                    {
+                        vertex_out_cnt += 1;
+                        vertex_unavailable[j] = true;
+                    }
+                }
+            }
+            match vertex_out_cnt {
+                0 => {
+                    if remain_size != i {
+                        output[remain_size] = output[i];
+                    }
+                    remain_size += 1;
+                }
+                1 => {
+                    let mut idx: [usize; 3] = [0; 3];
+                    if vertex_unavailable[0] {
+                        idx[0] = 1;
+                        idx[1] = 2;
+                        idx[2] = 0;
+                    } else if vertex_unavailable[1] {
+                        idx[0] = 2;
+                        idx[1] = 1;
+                        idx[2] = 0;
+                    } else {
+                        idx[0] = 0;
+                        idx[1] = 1;
+                        idx[2] = 2;
+                    }
+                    let A = &output[i].verteies[idx[0]];
+                    let B = &output[i].verteies[idx[1]];
+                    let C = &output[i].verteies[idx[2]];
+                    let mut t_D: f32 = 0.0;
+                    let mut t_E: f32 = 0.0;
+                    if IS_LESS {
+                        t_D = (A.transform_pos[N] + A.transform_pos.w)
+                            / ((A.transform_pos[N] + A.transform_pos.w)
+                                - (C.transform_pos[N] + C.transform_pos.w));
+                        t_E = (B.transform_pos[N] + B.transform_pos.w)
+                            / ((B.transform_pos[N] + B.transform_pos.w)
+                                - (C.transform_pos[N] + C.transform_pos.w));
+                    } else {
+                        t_D = (A.transform_pos[N] - A.transform_pos.w)
+                            / ((A.transform_pos[N] - A.transform_pos.w)
+                                - (C.transform_pos[N] - C.transform_pos.w));
+                        t_E = (B.transform_pos[N] - B.transform_pos.w)
+                            / ((B.transform_pos[N] - B.transform_pos.w)
+                                - (C.transform_pos[N] - C.transform_pos.w));
+                    }
+                    let D = (1.0 - t_D) * A + &(t_D * C);
+                    let E = (1.0 - t_E) * B + &(t_E * C);
+                    output.push(TriangleRasterization::new(A, &D, &E));
+                    output[i].verteies[idx[2]] = D;
+                    if remain_size != i {
+                        output[remain_size] = output[i];
+                    }
+                    remain_size += 1;
+                }
+                2 => {
+                    let mut idx: [usize; 3] = [0; 3];
+                    if !vertex_unavailable[0] {
+                        idx[0] = 0;
+                        idx[1] = 1;
+                        idx[2] = 2;
+                    } else if !vertex_unavailable[1] {
+                        idx[0] = 1;
+                        idx[1] = 2;
+                        idx[2] = 0;
+                    } else {
+                        idx[0] = 2;
+                        idx[1] = 1;
+                        idx[2] = 0;
+                    }
+                    let A = &output[i].verteies[idx[0]];
+                    let B = &output[i].verteies[idx[1]];
+                    let C = &output[i].verteies[idx[2]];
+                    let mut t_D: f32 = 0.0;
+                    let mut t_E: f32 = 0.0;
+                    if IS_LESS {
+                        t_D = (A.transform_pos[N] + A.transform_pos.w)
+                            / ((A.transform_pos[N] + A.transform_pos.w)
+                                - (B.transform_pos[N] + B.transform_pos.w));
+                        t_E = (A.transform_pos[N] + A.transform_pos.w)
+                            / ((A.transform_pos[N] + A.transform_pos.w)
+                                - (C.transform_pos[N] + C.transform_pos.w));
+                    } else {
+                        t_D = (A.transform_pos[N] - A.transform_pos.w)
+                            / ((A.transform_pos[N] - A.transform_pos.w)
+                                - (B.transform_pos[N] - B.transform_pos.w));
+                        t_E = (A.transform_pos[N] - A.transform_pos.w)
+                            / ((A.transform_pos[N] - A.transform_pos.w)
+                                - (C.transform_pos[N] - C.transform_pos.w));
+                    }
+                    let D = (1.0 - t_D) * A + &(t_D * B);
+                    let E = (1.0 - t_E) * A + &(t_E * C);
+                    output[i].verteies[idx[1]] = D;
+                    output[i].verteies[idx[2]] = E;
+                    if remain_size != i {
+                        output[remain_size] = output[i];
+                    }
+                    remain_size += 1;
+                }
+                _ => {}
+            }
+        }
+        output.copy_within(old_size.., remain_size);
+        output.truncate(output.len() - old_size + remain_size);
     }
 }
