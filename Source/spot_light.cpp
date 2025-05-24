@@ -9,7 +9,7 @@ constexpr float spot_light_bias_scale = 0.04f; // 经验值
 constexpr int spot_light_sample_num = 64;
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-1000.0f), light_size(0.5f), fov_factor(0.0f),
+      zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
       pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
       penumbra_mask_width(0), penumbra_mask_height(0), enable_shadow(true),
       enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
@@ -271,7 +271,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
 
   int pcss_radius =
       std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() * 0.5f /
-                            16.0f * light_size / fov_factor / pixel_radius));
+                            32.0f * light_size / fov_factor / pixel_radius));
   // 魔数是试出来的
   // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
   // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
@@ -313,7 +313,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   block_depth /= block_num;
   float penumbra = (transform_pos.z() - block_depth) / block_depth * light_size;
   int pcf_radius =
-      std::max(1.0f, roundf(penumbra /
+      std::max(1.0f, roundf(0.5f * penumbra /
                             (-transform_pos.z() * fov_factor * pixel_radius)));
   // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
   // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
