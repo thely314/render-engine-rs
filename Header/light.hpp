@@ -60,9 +60,10 @@ class light {
   friend struct Triangle_rasterization;
   friend struct Model;
   friend struct spot_light;
+  friend struct Scene;
 
 public:
-  enum SHADOW_STATUS { BRIGHT, PENUMBRA, SHADOW };
+  enum SHADOW_METHOD { DIRECT, PCF, PCSS };
   light();
   light(const Eigen::Vector3f &pos, const Eigen::Vector3f &intensity);
   Eigen::Vector3f get_pos() const;
@@ -70,19 +71,23 @@ public:
   Eigen::Vector3f get_intensity() const;
   void set_intensity(const Eigen::Vector3f &intensity);
   virtual void look_at(const Scene &);
-  virtual bool in_shadow(const Eigen::Vector3f &point_pos,
-                         const Eigen::Vector3f &normal);
+  virtual float in_shadow(const Eigen::Vector3f &point_pos,
+                          const Eigen::Vector3f &normal,
+                          SHADOW_METHOD shadow_method);
+  virtual bool in_penumbra_mask(int x, int y);
+  virtual ~light() = default;
+
+protected:
+  virtual float in_shadow_direct(const Eigen::Vector3f &point_pos,
+                                 const Eigen::Vector3f &normal);
   virtual float in_shadow_pcf(const Eigen::Vector3f &point_pos,
                               const Eigen::Vector3f &normal);
   virtual float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                                const Eigen::Vector3f &normal);
-  virtual void generate_penumbra_mask_block(
-      const Scene &scene, std::vector<SHADOW_STATUS> &penumbra_mask,
-      std::vector<float> &penumbra_mask_blur, int start_row, int start_col,
-      int block_row, int block_col);
-  virtual ~light() = default;
-
-protected:
+  virtual void generate_penumbra_mask_block(const Scene &scene, int start_row,
+                                            int start_col, int block_row,
+                                            int block_col);
+  virtual void box_blur_penumbra_mask(int radius);
   Eigen::Vector3f pos;
   Eigen::Vector3f intensity;
 };
@@ -114,6 +119,8 @@ public:
   void set_pcf_sample_accelerate_status(bool status);
   bool get_pcss_sample_accelerate_status() const;
   void set_pcss_sample_accelerate_status(bool status);
+  bool get_penumbra_mask_status() const;
+  void set_penumbra_mask_status(bool status);
 
 private:
   Eigen::Vector3f light_dir;
@@ -121,6 +128,8 @@ private:
   float aspect_ratio;
   float zNear;
   float zFar;
+  int penumbra_mask_width;
+  int penumbra_mask_height;
   float light_size;
   float fov_factor;
   float pixel_radius;
@@ -129,22 +138,28 @@ private:
   bool enable_shadow;
   bool enable_pcf_sample_accelerate;
   bool enable_pcss_sample_accelerate;
+  bool enable_penumbra_mask;
   Eigen::Matrix<float, 4, 4> mvp;
   Eigen::Matrix<float, 4, 4> mv;
   std::vector<float> z_buffer;
+  std::vector<float> penumbra_mask;
   int get_index(int x, int y);
+  int get_penumbra_mask_index(int x, int y);
   void look_at(const Scene &) override;
-  bool in_shadow(const Eigen::Vector3f &point_pos,
-                 const Eigen::Vector3f &normal) override;
+  float in_shadow(const Eigen::Vector3f &point_pos,
+                  const Eigen::Vector3f &normal,
+                  SHADOW_METHOD shadow_method) override;
+  bool in_penumbra_mask(int x, int y) override;
+  float in_shadow_direct(const Eigen::Vector3f &point_pos,
+                         const Eigen::Vector3f &normal) override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
                       const Eigen::Vector3f &normal) override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                        const Eigen::Vector3f &normal) override;
-  void generate_penumbra_mask_block(const Scene &scene,
-                                    std::vector<SHADOW_STATUS> &penumbra_mask,
-                                    std::vector<float> &penumbra_mask_blur,
-                                    int start_row, int start_col, int block_row,
+  void generate_penumbra_mask_block(const Scene &scene, int start_row,
+                                    int start_col, int block_row,
                                     int block_col) override;
+  void box_blur_penumbra_mask(int radius) override;
 };
 class directional_light : public light {
   friend struct Triangle;
@@ -174,6 +189,8 @@ public:
   void set_pcf_sample_accelerate_status(bool status);
   bool get_pcss_sample_accelerate_status() const;
   void set_pcss_sample_accelerate_status(bool status);
+  bool get_penumbra_mask_status() const;
+  void set_penumbra_mask_status(bool status);
 
 private:
   Eigen::Vector3f light_dir;
@@ -188,23 +205,31 @@ private:
   float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;
+  int penumbra_mask_width;
+  int penumbra_mask_height;
   bool enable_shadow;
   bool enable_pcf_sample_accelerate;
   bool enable_pcss_sample_accelerate;
+  bool enable_penumbra_mask;
   Eigen::Matrix<float, 4, 4> mvp;
   Eigen::Matrix<float, 4, 4> mv;
   std::vector<float> z_buffer;
+  std::vector<float> penumbra_mask;
   int get_index(int x, int y);
+  int get_penumbra_mask_index(int x, int y);
   void look_at(const Scene &) override;
-  bool in_shadow(const Eigen::Vector3f &point_pos,
-                 const Eigen::Vector3f &normal) override;
+  bool in_penumbra_mask(int x, int y) override;
+  float in_shadow(const Eigen::Vector3f &point_pos,
+                  const Eigen::Vector3f &normal,
+                  SHADOW_METHOD shadow_method) override;
+  float in_shadow_direct(const Eigen::Vector3f &point_pos,
+                         const Eigen::Vector3f &normal) override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
                       const Eigen::Vector3f &normal) override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                        const Eigen::Vector3f &normal) override;
-  void generate_penumbra_mask_block(const Scene &scene,
-                                    std::vector<SHADOW_STATUS> &penumbra_mask,
-                                    std::vector<float> &penumbra_mask_blur,
-                                    int start_row, int start_col, int block_row,
+  void generate_penumbra_mask_block(const Scene &scene, int start_row,
+                                    int start_col, int block_row,
                                     int block_col) override;
+  void box_blur_penumbra_mask(int radius) override;
 };

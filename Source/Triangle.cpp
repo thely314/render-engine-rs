@@ -5,6 +5,7 @@
 #include "light.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 
@@ -13,7 +14,7 @@ void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
     Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
     v.pos = new_pos.head<3>();
-    v.normal = new_normal;
+    v.normal = new_normal.normalized();
   }
 }
 
@@ -44,7 +45,7 @@ void Triangle_rasterization::modeling(
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
     Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
     v.pos = new_pos.head<3>();
-    v.normal = new_normal;
+    v.normal = new_normal.normalized();
   }
 }
 
@@ -299,27 +300,14 @@ void Triangle_rasterization::rasterization_shadow_map_block(
 
 void Triangle_rasterization::to_NDC(int width, int height) {
   // z不需要齐次化
-  vertexs[0].transform_pos.x() /= vertexs[0].transform_pos.w();
-  vertexs[0].transform_pos.y() /= vertexs[0].transform_pos.w();
-
-  vertexs[1].transform_pos.x() /= vertexs[1].transform_pos.w();
-  vertexs[1].transform_pos.y() /= vertexs[1].transform_pos.w();
-
-  vertexs[2].transform_pos.x() /= vertexs[2].transform_pos.w();
-  vertexs[2].transform_pos.y() /= vertexs[2].transform_pos.w();
-
-  vertexs[0].transform_pos.x() =
-      (vertexs[0].transform_pos.x() + 1) * 0.5f * width;
-  vertexs[0].transform_pos.y() =
-      (vertexs[0].transform_pos.y() + 1) * 0.5f * height;
-  vertexs[1].transform_pos.x() =
-      (vertexs[1].transform_pos.x() + 1) * 0.5f * width;
-  vertexs[1].transform_pos.y() =
-      (vertexs[1].transform_pos.y() + 1) * 0.5f * height;
-  vertexs[2].transform_pos.x() =
-      (vertexs[2].transform_pos.x() + 1) * 0.5f * width;
-  vertexs[2].transform_pos.y() =
-      (vertexs[2].transform_pos.y() + 1) * 0.5f * height;
+  for (int i = 0; i != 3; ++i) {
+    vertexs[i].transform_pos.x() /= vertexs[i].transform_pos.w();
+    vertexs[i].transform_pos.y() /= vertexs[i].transform_pos.w();
+    vertexs[i].transform_pos.x() =
+        (vertexs[i].transform_pos.x() + 1) * 0.5f * width;
+    vertexs[i].transform_pos.y() =
+        (vertexs[i].transform_pos.y() + 1) * 0.5f * height;
+  }
 }
 void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
                                   const Eigen::Matrix<float, 4, 4> &mv,

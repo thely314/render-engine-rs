@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <format>
 #include <memory>
-void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
+void processMesh(aiMesh *mesh, Model &model) {
   std::vector<Vertex> vertices;
   std::vector<int> indices;
   for (int i = 0; i < mesh->mNumVertices; i++) {
@@ -48,7 +48,7 @@ void processMesh(aiMesh *mesh, const aiScene *scene, Model &model) {
 void processNode(aiNode *node, const aiScene *scene, Model &model) {
   for (int i = 0; i != node->mNumMeshes; i++) {
     aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-    processMesh(mesh, scene, model);
+    processMesh(mesh, model);
   }
   for (int i = 0; i != node->mNumChildren; i++) {
     processNode(node->mChildren[i], scene, model);
@@ -73,46 +73,13 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
         return_color += ambient;
         float shadow_result = 1.0f;
-        // if (scene.penumbra_masks[i][scene.get_penumbra_mask_index(
-        //         x / 4, y / 4)] == light::PENUMBRA) {
-        //   return_color = {1.0f, 1.0f, 1.0f};
-        // } else {
-        //   return_color = {0.0f, 0.0f, 0.0f};
-        // }
-        // break;
-        if (scene.get_penumbra_mask_status()) {
-          light::SHADOW_STATUS shadow_status =
-              scene.penumbra_masks[i]
-                                  [scene.get_penumbra_mask_index(x / 4, y / 4)];
-          switch (shadow_status) {
-          case light::BRIGHT:
-            break;
-          case light::PENUMBRA: {
-            switch (scene.get_shadow_method()) {
-            case Scene::PCF:
-              shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
-              break;
-            case Scene::PCSS:
-              shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
-              break;
-            }
-            break;
-          }
-          case light::SHADOW:
-            shadow_result = 0.0f;
-          }
-          if (shadow_result < EPSILON) {
-            continue;
-          }
+        if (scene.lights[i]->in_penumbra_mask(x, y)) {
+          shadow_result = scene.lights[i]->in_shadow(pos, normal, light::PCSS);
+          // return_color = {1.0f, 1.0f, 1.0f};
         } else {
-          switch (scene.get_shadow_method()) {
-          case Scene::PCF:
-            shadow_result = scene.lights[i]->in_shadow_pcf(pos, normal);
-            break;
-          case Scene::PCSS:
-            shadow_result = scene.lights[i]->in_shadow_pcss(pos, normal);
-            break;
-          }
+          // return_color = {0.0f, 0.0f, 0.0f};
+          shadow_result =
+              scene.lights[i]->in_shadow(pos, normal, light::DIRECT);
         }
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
         Eigen::Vector3f light_dir = scene.lights[i]->get_pos() - pos;
@@ -198,6 +165,8 @@ int main() {
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
   l1->set_pcf_sample_accelerate_status(true);
   l1->set_pcss_sample_accelerate_status(true);
+  l1->set_penumbra_mask_status(true);
+
   // auto l2 = std::make_shared<directional_light>();
   // l2->set_pos({10, 10, 10});
   // l2->set_intensity({250, 250, 250});
@@ -208,14 +177,14 @@ int main() {
   // my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
   // l1->set_shadow_status(false);
-  my_scene.set_penumbra_mask_status(false);
-  my_scene.set_shadow_method(Scene::PCSS);
+  // my_scene.set_penumbra_mask_status(false);
+  // my_scene.set_shadow_method(Scene::PCSS);
   // model->modeling(get_model_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }

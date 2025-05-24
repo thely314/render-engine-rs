@@ -1,7 +1,10 @@
 #pragma once
 #include "Eigen/Core"
 #include <Eigen/Dense>
+#include <algorithm>
 #include <cmath>
+#include <functional>
+#include <vector>
 
 constexpr float EPSILON = 1e-4;
 constexpr int maximum_thread_num = 8;
@@ -56,6 +59,40 @@ get_projection_matrix(const float fov, const float aspect_ratio,
       -tan_val_div, 0.0f, 0.0f, 0.0f, 0.0f, (zNear + zFar) / (zNear - zFar),
       -2 * zNear * zFar / (zNear - zFar), 0.0f, 0.0f, 1.0f, 0.0f;
   return perspective;
+}
+inline std::vector<float>
+blur_penumbra_mask_horizontal(const std::vector<float> &input, int width,
+                              int height, int radius,
+                              const std::function<int(int, int)> &get_index) {
+  std::vector<float> output(input.size(), 0.0f);
+  for (int y = 0; y != height; ++y) {
+    for (int x = 0; x != width; ++x) {
+      float sum = 0.0f;
+      for (int offset = -radius; offset <= radius; ++offset) {
+        int idx = get_index(std::clamp(x + offset, 0, width - 1), y);
+        sum += input[idx];
+      }
+      output[get_index(x, y)] = sum / (2 * radius + 1);
+    }
+  }
+  return output;
+}
+inline std::vector<float>
+blur_penumbra_mask_vertical(const std::vector<float> &input, int width,
+                            int height, int radius,
+                            const std::function<int(int, int)> &get_index) {
+  std::vector<float> output(input.size(), 0.0f);
+  for (int y = 0; y != height; ++y) {
+    for (int x = 0; x != width; ++x) {
+      float sum = 0.0f;
+      for (int offset = -radius; offset <= radius; ++offset) {
+        int idx = get_index(x, std::clamp(y + offset, 0, height - 1));
+        sum += input[idx];
+      }
+      output[get_index(x, y)] = sum / (2 * radius + 1);
+    }
+  }
+  return output;
 }
 struct Vertex;
 struct Scene;

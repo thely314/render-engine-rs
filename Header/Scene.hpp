@@ -31,7 +31,6 @@ class Scene {
   friend struct directional_light;
 
 public:
-  enum SHADOW_METHOD { PCF, PCSS };
   Scene(int width, int height);
   ~Scene() = default;
   void start_render();
@@ -47,8 +46,6 @@ public:
   void set_zFar(float zFar);
   void set_width(int width);
   void set_height(int height);
-  void set_penumbra_mask_status(bool status);
-  void set_shadow_method(SHADOW_METHOD method);
   void set_shader(
       const std::function<void(Scene &Scene, int start_row, int start_col,
                                int block_row, int block_col)> &shader);
@@ -58,8 +55,6 @@ public:
   float get_zFar() const;
   int get_width() const;
   int get_height() const;
-  bool get_penumbra_mask_status() const;
-  SHADOW_METHOD get_shadow_method() const;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
   get_shader() const;
@@ -72,29 +67,14 @@ public:
   std::vector<float> z_buffer;
   std::vector<std::shared_ptr<Model>> objects;
   std::vector<std::shared_ptr<light>> lights;
-  std::vector<std::vector<light::SHADOW_STATUS>> penumbra_masks;
-  std::vector<std::vector<float>> penumbra_masks_blur;
 
 private:
-  std::vector<float>
-  penumbra_mask_blur_horizontal(const std::vector<float> &input);
-  std::vector<float>
-  penumbra_mask_blur_vertical(const std::vector<float> &input);
-  std::vector<float>
-  penumbra_mask_box_blur_horizontal(const std::vector<float> &input,
-                                    int radius);
-  std::vector<float>
-  penumbra_mask_box_blur_vertical(const std::vector<float> &input, int radius);
   Eigen::Vector3f eye_pos;
   Eigen::Vector3f view_dir;
   float zNear;
   float zFar;
   int width;
   int height;
-  int penumbra_mask_width;
-  int penumbra_mask_height;
-  bool enable_penumbra_mask;
-  SHADOW_METHOD shadow_method;
   std::function<void(Scene &Scene, int start_row, int start_col, int block_row,
                      int block_col)>
       shader;
