@@ -1,7 +1,7 @@
 use image::{DynamicImage, GenericImageView};
 use nalgebra::clamp;
 
-use super::triangle::*;
+use crate::util::math::*;
 
 pub struct Texture {
     data: Vec<u8>,

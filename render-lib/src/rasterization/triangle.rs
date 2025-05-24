@@ -1,10 +1,5 @@
-use crate::util::math::EPSILON;
+use crate::util::math::*;
 use std::{clone, default};
-pub type Vector2f = nalgebra::Vector2<f32>;
-pub type Vector3f = nalgebra::Vector3<f32>;
-pub type Vector4f = nalgebra::Vector4<f32>;
-pub type Matrix3f = nalgebra::Matrix3<f32>;
-pub type Matrix4f = nalgebra::Matrix4<f32>;
 
 #[derive(Debug)]
 pub struct Vertex {
@@ -108,18 +103,23 @@ impl Clone for Triangle {
 impl Copy for Triangle {}
 
 impl Triangle {
-    fn new(v0: &Vertex, v1: &Vertex, v2: &Vertex) -> Self {
+    pub fn new(v0: &Vertex, v1: &Vertex, v2: &Vertex) -> Self {
         Triangle {
             verteies: [*v0, *v1, *v2],
         }
     }
-    fn clip(&self, mvp: &Matrix4f, mv: &Matrix4f, output: &mut Vec<TriangleRasterization>) {
+    pub(in crate::rasterization) fn clip(
+        &self,
+        mvp: &Matrix4f,
+        mv: &Matrix4f,
+        output: &mut Vec<TriangleRasterization>,
+    ) {
         let mut mv_pos: [Vector4f; 3] = [Vector4f::default(); 3];
         for i in 0..3 {
             mv_pos[i] = mv * (self.verteies[i].pos.to_homogeneous());
         }
         let mv_normal = ((mv_pos[1] - mv_pos[0]).xyz()).cross(&(mv_pos[2] - mv_pos[1]).xyz());
-        if mv_normal.z > EPSILON {
+        if mv_normal.z < -EPSILON {
             return;
         }
         let mut clip_triangles = vec![TriangleRasterization::from_triangle(self)];
@@ -137,7 +137,7 @@ impl Triangle {
             output.push(iter);
         }
     }
-    fn modeling(&mut self, matrix: &Matrix4f) {
+    pub fn modeling(&mut self, matrix: &Matrix4f) {
         for i in 0..3 {
             self.verteies[i].pos = (matrix * self.verteies[i].pos.to_homogeneous()).xyz();
             self.verteies[i].normal = matrix.fixed_view::<3, 3>(0, 0) * self.verteies[i].normal;
@@ -289,7 +289,7 @@ impl TriangleRasterization {
             ),
         )
     }
-    pub fn clip_triangles<const N: usize, const IS_LESS: bool>(
+    fn clip_triangles<const N: usize, const IS_LESS: bool>(
         output: &mut Vec<TriangleRasterization>,
     ) {
         let old_size: usize = output.len();
@@ -415,7 +415,7 @@ impl TriangleRasterization {
         output.copy_within(old_size.., remain_size);
         output.truncate(output.len() - old_size + remain_size);
     }
-    pub fn to_NDC(&mut self, width: u32, height: u32) {
+    pub(in crate::rasterization) fn to_NDC(&mut self, width: u32, height: u32) {
         for i in 0..3 {
             //z不需要齐次化
             self.verteies[i].transform_pos.x /= self.verteies[i].transform_pos.w;
@@ -427,7 +427,12 @@ impl TriangleRasterization {
         }
     }
 }
-pub fn cal_bary_coord_2d(v0: Vector2f, v1: Vector2f, v2: Vector2f, p: Vector2f) -> (f32, f32, f32) {
+pub(in crate::rasterization) fn cal_bary_coord_2d(
+    v0: Vector2f,
+    v1: Vector2f,
+    v2: Vector2f,
+    p: Vector2f,
+) -> (f32, f32, f32) {
     let ab = v1 - v0;
     let bc = v2 - v1;
     let pa = v0 - p;
@@ -440,6 +445,6 @@ pub fn cal_bary_coord_2d(v0: Vector2f, v1: Vector2f, v2: Vector2f, p: Vector2f) 
     return (alpha, 1.0 - alpha - gamma, gamma);
 }
 
-pub fn is_inside_triangle(alpha: f32, beta: f32, gamma: f32) -> bool {
+pub(in crate::rasterization) fn is_inside_triangle(alpha: f32, beta: f32, gamma: f32) -> bool {
     return alpha > -EPSILON && beta > -EPSILON && gamma > -EPSILON;
 }

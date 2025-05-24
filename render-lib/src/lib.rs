@@ -8,12 +8,8 @@ pub mod util;
 
 #[cfg(test)]
 mod test {
-    use crate::rasterization::{
-        triangle::Vector2f,
-        triangle::{Vector3f, Vertex},
-    };
-
-    use super::*;
+    use crate::rasterization::*;
+    use crate::util::math::*;
     #[test]
     pub fn test_vertex() {
         let model_path = "./models/utah_teapot.obj"; // 请替换为你的模型文件路径
@@ -45,7 +41,7 @@ mod test {
                 eprintln!("加载模型失败: {}", err);
             }
         }
-        let v = Vertex::new(
+        let v = triangle::Vertex::new(
             Vector3f::new(0.0, 0.0, 0.0),
             Vector3f::new(1.0, 1.0, 1.0),
             Vector3f::new(1.0, 1.0, 1.0),
