@@ -22,12 +22,10 @@ get_model_matrix(const Eigen::Vector3f &axis, float angle,
   Eigen::Matrix<float, 4, 4> model_matrix = Eigen::Matrix<float, 4, 4>::Zero();
   model_matrix.block(0, 0, 3, 3) = axis_cross.block(0, 0, 3, 3);
   model_matrix(3, 3) = 1.0f;
-  Eigen::Matrix<float, 4, 4> move_matrix =
-      Eigen::Matrix<float, 4, 4>::Identity();
-  move_matrix(0, 3) = move.x();
-  move_matrix(1, 3) = move.y();
-  move_matrix(2, 3) = move.z();
-  return model_matrix * move_matrix;
+  model_matrix(0, 3) = move.x();
+  model_matrix(1, 3) = move.y();
+  model_matrix(2, 3) = move.z();
+  return model_matrix;
 };
 inline Eigen::Matrix<float, 4, 4>
 get_view_matrix(const Eigen::Vector3f &eye_pos,

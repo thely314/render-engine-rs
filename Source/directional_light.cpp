@@ -156,7 +156,7 @@ bool directional_light::in_penumbra_mask(int x, int y) {
     return penumbra_mask[get_penumbra_mask_index(x * 0.25f, y * 0.25f)] >
            EPSILON;
   }
-  return false;
+  return true;
 }
 
 float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
@@ -274,9 +274,9 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   float bias = directional_light_bias_scale *
                std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
                pixel_radius;
-  float light_size_div_distance = tan(M_PI / 360.0f * angular_diameter);
+  float light_size_div_distance = 2.0f * tan(M_PI / 360.0f * angular_diameter);
   int pcss_radius =
-      std::max(1.0f, 10.0f * light_size_div_distance / pixel_radius);
+      std::max(1.0f, 5.0f * light_size_div_distance / pixel_radius);
   // 魔数是试出来的
   // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
   // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
@@ -317,7 +317,7 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   }
   block_depth /= block_num;
   float penumbra = (block_depth - transform_pos.z()) * light_size_div_distance;
-  int pcf_radius = std::max(1.0f, roundf(penumbra / pixel_radius));
+  int pcf_radius = std::max(1.0f, roundf(0.5f * penumbra / pixel_radius));
   // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
   // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
   // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变
