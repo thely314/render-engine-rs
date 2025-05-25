@@ -9,7 +9,7 @@ pub type Vector4f = nalgebra::Vector4<f32>;
 pub type Matrix3f = nalgebra::Matrix3<f32>;
 pub type Matrix4f = nalgebra::Matrix4<f32>;
 
-fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Matrix4f {
+pub fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Matrix4f {
     let axis = axis.normalize();
     let angle = angle * PI / 180.0;
     let cos_val = angle.cos();
@@ -39,7 +39,7 @@ fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Matrix
         1.0,
     ])
 }
-fn get_view_matrix(eye_pos: Vector3f, view_dir: Vector3f) -> Matrix4f {
+pub fn get_view_matrix(eye_pos: Vector3f, view_dir: Vector3f) -> Matrix4f {
     let view_dir: Vector3f = view_dir.normalize();
     let sky_dir = (Vector3f::y() - Vector3f::y().dot(&view_dir) * view_dir).normalize();
     let x_dir = view_dir.cross(&sky_dir).normalize();
@@ -58,7 +58,7 @@ fn get_view_matrix(eye_pos: Vector3f, view_dir: Vector3f) -> Matrix4f {
         .copy_from(&sub_xyz_matrix);
     xyz_matrix * move_matrix
 }
-fn get_projection_matrix(fov: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Matrix4f {
+pub fn get_projection_matrix(fov: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Matrix4f {
     let tan_val_div = 1.0 / (fov / 360.0 * PI).tan();
     Matrix4f::from_row_slice(&[
         -tan_val_div / aspect_ratio,
@@ -79,7 +79,7 @@ fn get_projection_matrix(fov: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -
         0.0,
     ])
 }
-fn blur_penumbra_mask_horizontal<T: Fn(i32, i32) -> i32>(
+pub(crate) fn blur_penumbra_mask_horizontal<T: Fn(i32, i32) -> i32>(
     input: &Vec<f32>,
     width: i32,
     height: i32,
@@ -99,7 +99,7 @@ fn blur_penumbra_mask_horizontal<T: Fn(i32, i32) -> i32>(
     }
     output
 }
-fn blur_penumbra_mask_vertical<T: Fn(i32, i32) -> i32>(
+pub(crate) fn blur_penumbra_mask_vertical<T: Fn(i32, i32) -> i32>(
     input: &Vec<f32>,
     width: i32,
     height: i32,

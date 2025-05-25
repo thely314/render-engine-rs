@@ -1,5 +1,9 @@
+use nalgebra::{clamp, max, min};
+
 use crate::util::math::*;
-use std::{clone, default};
+
+use super::model::*;
+use super::scene::Scene;
 
 #[derive(Debug)]
 pub struct Vertex {
@@ -114,13 +118,15 @@ impl Triangle {
         mv: &Matrix4f,
         output: &mut Vec<TriangleRasterization>,
     ) {
-        let mut mv_pos: [Vector4f; 3] = [Vector4f::default(); 3];
+        let mut mv_pos: [Vector3f; 3] = [Vector3f::default(); 3];
         for i in 0..3 {
-            mv_pos[i] = mv * (self.verteies[i].pos.to_homogeneous());
+            mv_pos[i] = (mv * (self.verteies[i].pos.to_homogeneous())).xyz();
         }
-        let mv_normal = ((mv_pos[1] - mv_pos[0]).xyz()).cross(&(mv_pos[2] - mv_pos[1]).xyz());
-        if mv_normal.z < -EPSILON {
-            return;
+        let mv_normal = (mv_pos[1] - mv_pos[0]).cross(&(mv_pos[2] - mv_pos[1]));
+        for i in 0..3 {
+            if mv_normal.dot(&-mv_pos[i]) < -EPSILON {
+                return;
+            }
         }
         let mut clip_triangles = vec![TriangleRasterization::from_triangle(self)];
         for i in 0..3 {
@@ -288,6 +294,138 @@ impl TriangleRasterization {
                 triangle.verteies[2].pos.to_homogeneous(),
             ),
         )
+    }
+    pub(in crate::rasterization) unsafe fn rasterization(
+        &self,
+        scene: *mut Scene,
+        model: &Model,
+        start_row: i32,
+        start_col: i32,
+        block_row: i32,
+        block_col: i32,
+    ) {
+        let end_row = clamp(start_row + block_row - 1, 0, (*scene).height - 1);
+        let end_col = clamp(start_col + block_col - 1, 0, (*scene).width - 1);
+        let start_row = clamp(start_row, 0, (*scene).height - 1);
+        let start_col = clamp(start_col, 0, (*scene).width - 1);
+        let mut box_left: i32 = (*scene).width;
+        let mut box_right: i32 = 0;
+        let mut box_bottom: i32 = (*scene).height;
+        let mut box_top: i32 = 0;
+        for i in 0..3 {
+            box_left = min(self.verteies[i].transform_pos.x as i32, box_left);
+            box_right = max(self.verteies[i].transform_pos.x as i32, box_right);
+            box_bottom = min(self.verteies[i].transform_pos.y as i32, box_bottom);
+            box_top = max(self.verteies[i].transform_pos.y as i32, box_top);
+        }
+        box_left = clamp(box_left, start_col, end_col);
+        box_right = clamp(box_right, start_col, end_col);
+        box_bottom = clamp(box_bottom, start_row, end_row);
+        box_top = clamp(box_top, start_row, end_row);
+        let edge1 = self.verteies[1].pos - self.verteies[0].pos;
+        let edge2 = self.verteies[2].pos - self.verteies[1].pos;
+        let uv_edge1 = self.verteies[1].texture_coords - self.verteies[0].texture_coords;
+        let uv_edge2 = self.verteies[2].texture_coords - self.verteies[1].texture_coords;
+        let tangent: Vector3f;
+        let binormal: Vector3f;
+        let diffuse_texture = model.get_texture(TextureTypes::Diffuse);
+        let specular_texture = model.get_texture(TextureTypes::Specular);
+        let normal_texture = model.get_texture(TextureTypes::Normal);
+        let glow_texture = model.get_texture(TextureTypes::Glow);
+        if let Some(_normal_texture) = &normal_texture {
+            if uv_edge1.x * uv_edge2.y - uv_edge2.x * uv_edge1.y > 0.0 {
+                tangent = (uv_edge2.y * edge1 - uv_edge1.y * edge2).normalize();
+                binormal = -(uv_edge2.x * edge1 - uv_edge1.x * edge2).normalize();
+            } else {
+                tangent = -(uv_edge2.y * edge1 - uv_edge1.y * edge2).normalize();
+                binormal = (uv_edge2.x * edge1 - uv_edge1.x * edge2).normalize();
+            }
+        } else {
+            tangent = Vector3f::default();
+            binormal = Vector3f::default();
+        }
+        for y in box_bottom..=box_top {
+            for x in box_left..=box_right {
+                let (mut alpha, mut beta, mut gamma) = cal_bary_coord_2d(
+                    self.verteies[0].transform_pos.xy(),
+                    self.verteies[1].transform_pos.xy(),
+                    self.verteies[2].transform_pos.xy(),
+                    Vector2f::new(x as f32 + 0.5, y as f32 + 0.5),
+                );
+                if is_inside_triangle(alpha, beta, gamma) {
+                    alpha /= -self.verteies[0].transform_pos.w;
+                    beta /= -self.verteies[1].transform_pos.w;
+                    gamma /= -self.verteies[2].transform_pos.w;
+                    let w_inter = 1.0 / (alpha + beta + gamma);
+                    alpha *= w_inter;
+                    beta *= w_inter;
+                    gamma *= w_inter;
+                    let point_transform_z = alpha * self.verteies[0].transform_pos.z
+                        + beta * self.verteies[1].transform_pos.z
+                        + gamma * self.verteies[2].transform_pos.z;
+                    let point_transform_w = alpha * self.verteies[0].transform_pos.w
+                        + beta * self.verteies[1].transform_pos.w
+                        + gamma * self.verteies[2].transform_pos.w;
+                    let point_transform_z = ((point_transform_z / -point_transform_w) + 1.0) * 0.5;
+                    let idx = (*scene).get_index(x, y) as usize;
+                    if (point_transform_z < (*scene).z_buffer[idx]) {
+                        (*scene).z_buffer[idx] = point_transform_z;
+                        let point_pos = alpha * self.verteies[0].pos
+                            + beta * self.verteies[1].pos
+                            + gamma * self.verteies[2].pos;
+                        let point_normal = (alpha * self.verteies[0].normal
+                            + beta * self.verteies[1].normal
+                            + gamma * self.verteies[2].normal)
+                            .normalize();
+                        let point_uv = (alpha * self.verteies[0].texture_coords
+                            + beta * self.verteies[1].texture_coords
+                            + gamma * self.verteies[2].texture_coords);
+
+                        (*scene).pos_buffer[idx] = point_pos;
+                        if let Some(normal_texture) = &normal_texture {
+                            let tbn_normal = (2.0 * normal_texture.get_rgb(point_uv.x, point_uv.y)
+                                - Vector3f::new(1.0, 1.0, 1.0))
+                            .normalize();
+                            let tangent_orthogonal =
+                                (tangent - tangent.dot(&point_normal) * point_normal).normalize();
+                            let mut binormal_orthogonal =
+                                point_normal.cross(&tangent_orthogonal).normalize();
+                            if binormal_orthogonal.dot(&binormal) < 0.0 {
+                                binormal_orthogonal = -binormal_orthogonal;
+                            }
+                            let tbn_matrix = Matrix3f::from_columns(&[
+                                tangent_orthogonal,
+                                binormal_orthogonal,
+                                point_normal,
+                            ]);
+                            (*scene).normal_buffer[idx] = tbn_matrix * tbn_normal;
+                        } else {
+                            (*scene).normal_buffer[idx] = point_normal;
+                        }
+                        if let Some(diffuse_texture) = &diffuse_texture {
+                            (*scene).diffuse_buffer[idx] =
+                                diffuse_texture.get_rgb(point_uv.x, point_uv.y);
+                        } else {
+                            (*scene).diffuse_buffer[idx] = alpha * self.verteies[0].color
+                                + beta * self.verteies[1].color
+                                + gamma * self.verteies[2].color;
+                        }
+                        if let Some(specular_texture) = &specular_texture {
+                            (*scene).specular_buffer[idx] =
+                                specular_texture.get_rgb(point_uv.x, point_uv.y);
+                        } else {
+                            (*scene).specular_buffer[idx] = Vector3f::new(0.8, 0.8, 0.8);
+                        }
+                        if let Some(glow_texture) = &glow_texture {
+                            (*scene).glow_buffer[idx] =
+                                glow_texture.get_rgb(point_uv.x, point_uv.y);
+                        } else {
+                            (*scene).glow_buffer[idx] = Vector3f::default();
+                        }
+                    }
+                }
+            }
+        }
     }
     fn clip_triangles<const N: usize, const IS_LESS: bool>(
         output: &mut Vec<TriangleRasterization>,

@@ -1,3 +1,4 @@
+use crate::rasterization::scene::*;
 use crate::rasterization::texture::*;
 use crate::rasterization::triangle::*;
 use crate::util::math::*;
@@ -13,13 +14,13 @@ pub struct Model {
     textures: [Option<Arc<Texture>>; Model::TEXTURE_NUM],
 }
 #[derive(Copy, Clone)]
-pub enum Textures {
+pub enum TextureTypes {
     Diffuse = 0,
     Specular = 1,
     Normal = 2,
     Glow = 3,
 }
-impl Textures {
+impl TextureTypes {
     pub const fn as_usize(&self) -> usize {
         *self as usize
     }
@@ -76,11 +77,29 @@ impl Model {
     pub fn get_scale(&self) -> f32 {
         self.scale
     }
-    pub fn set_texture(&mut self, texture: Option<Arc<Texture>>, id: Textures) {
+    pub fn set_texture(&mut self, texture: Option<Arc<Texture>>, id: TextureTypes) {
         self.textures[id.as_usize()] = texture;
     }
-    pub fn get_texture(&self, id: Textures) -> Option<Arc<Texture>> {
+    pub fn get_texture(&self, id: TextureTypes) -> Option<Arc<Texture>> {
         self.textures[id.as_usize()].clone()
+    }
+    pub(in crate::rasterization) unsafe fn rasterization(
+        &self,
+        scene: *mut Scene,
+        start_row: i32,
+        start_col: i32,
+        block_row: i32,
+        block_col: i32,
+    ) {
+        for sub_model in &self.sub_models {
+            sub_model
+                .lock()
+                .unwrap()
+                .rasterization(scene, start_row, start_col, block_row, block_col);
+        }
+        for triangle in &self.clip_triangles {
+            triangle.rasterization(scene, &self, start_row, start_col, block_row, block_col);
+        }
     }
     pub fn modeling(&mut self, modeling_matrix: &Matrix4f) {
         for sub_model in &self.sub_models {
