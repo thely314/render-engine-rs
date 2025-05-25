@@ -78,9 +78,11 @@ void directional_light::set_penumbra_mask_status(bool status) {
   enable_penumbra_mask = status;
 }
 
-int directional_light::get_index(int x, int y) { return zbuffer_width * y + x; }
+int directional_light::get_index(int x, int y) const {
+  return zbuffer_width * y + x;
+}
 
-int directional_light::get_penumbra_mask_index(int x, int y) {
+int directional_light::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * y + x;
 }
 
@@ -117,29 +119,27 @@ void directional_light::look_at(const Scene &scene) {
   int thread_render_row_num = ceil(zbuffer_width * 1.0 / maximum_thread_num);
   std::vector<std::thread> threads;
   auto render_lambda = [](const Scene &scene, directional_light &light,
-                          const Eigen::Matrix<float, 4, 4> &mvp, int start_row,
-                          int block_row) {
+                          int start_row, int block_row) {
     for (auto obj : scene.objects) {
-      obj->rasterization_shadow_map_block(mvp, light, start_row, 0, block_row,
+      obj->rasterization_shadow_map_block(light, start_row, 0, block_row,
                                           light.zbuffer_width);
     }
   };
   for (int i = 0; i < thread_num - 1; ++i) {
     threads.emplace_back(render_lambda, std::ref(scene), std::ref(*this),
-                         std::ref(this->mvp), thread_render_row_num * i,
-                         thread_render_row_num);
+                         thread_render_row_num * i, thread_render_row_num);
   }
-  threads.emplace_back(
-      render_lambda, std::ref(scene), std::ref(*this), std::ref(this->mvp),
-      thread_render_row_num * (thread_num - 1),
-      zbuffer_height - thread_render_row_num * (thread_num - 1));
+  threads.emplace_back(render_lambda, std::ref(scene), std::ref(*this),
+                       thread_render_row_num * (thread_num - 1),
+                       zbuffer_height -
+                           thread_render_row_num * (thread_num - 1));
   for (auto &&thread : threads) {
     thread.join();
   }
 }
 float directional_light::in_shadow(const Eigen::Vector3f &point_pos,
                                    const Eigen::Vector3f &normal,
-                                   SHADOW_METHOD shadow_method) {
+                                   SHADOW_METHOD shadow_method) const {
   switch (shadow_method) {
   case light::DIRECT:
     return in_shadow_direct(point_pos, normal);
@@ -160,7 +160,7 @@ bool directional_light::in_penumbra_mask(int x, int y) {
 }
 
 float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
-                                          const Eigen::Vector3f &normal) {
+                                          const Eigen::Vector3f &normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -191,7 +191,7 @@ float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
 }
 
 float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                                       const Eigen::Vector3f &normal) {
+                                       const Eigen::Vector3f &normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -250,7 +250,7 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
 }
 
 float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                        const Eigen::Vector3f &normal) {
+                                        const Eigen::Vector3f &normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }

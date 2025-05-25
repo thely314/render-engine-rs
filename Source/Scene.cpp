@@ -49,26 +49,22 @@ void Scene::start_render() {
   }
   for (auto &&obj : objects) {
     obj->clip(mvp, mv);
-  }
-  for (auto &&obj : objects) {
     obj->to_NDC(width, height);
   }
   int thread_num = std::min(height, maximum_thread_num);
   int thread_render_row_num = ceilf(height * 1.0f / thread_num);
   std::vector<std::thread> threads;
-  auto rasterization_lambda = [](Scene &scene,
-                                 const Eigen::Matrix<float, 4, 4> &mvp,
-                                 int start_row, int block_row) {
+  auto rasterization_lambda = [](Scene &scene, int start_row, int block_row) {
     for (auto &&obj : scene.objects) {
-      obj->rasterization_block(mvp, scene, *obj, start_row, 0, block_row,
+      obj->rasterization_block(scene, *obj, start_row, 0, block_row,
                                scene.width);
     }
   };
   for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(rasterization_lambda, std::ref(*this), std::ref(mvp),
+    threads.emplace_back(rasterization_lambda, std::ref(*this),
                          thread_render_row_num * i, thread_render_row_num);
   }
-  threads.emplace_back(rasterization_lambda, std::ref(*this), std::ref(mvp),
+  threads.emplace_back(rasterization_lambda, std::ref(*this),
                        thread_render_row_num * (thread_num - 1),
                        height - thread_render_row_num * (thread_num - 1));
   for (auto &&thread : threads) {

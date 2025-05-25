@@ -40,19 +40,13 @@ public:
   Vertex vertexs[3];
 
 private:
-  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                     const Model &model) override {};
-  void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
-                                spot_light &light) override {};
-  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                           const Model &model, int start_row, int start_col,
-                           int block_row, int block_col) override {}
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      spot_light &light, int start_row,
+  void rasterization_block(Scene &scene, const Model &model, int start_row,
+                           int start_col, int block_row,
+                           int block_col) override {}
+  void rasterization_shadow_map_block(spot_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override {}
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      directional_light &light, int start_row,
+  void rasterization_shadow_map_block(directional_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override {}
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
@@ -102,24 +96,18 @@ public:
   Vertex_rasterization vertexs[3];
 
 private:
-  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                     const Model &model) override;
-  void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
-                                spot_light &light) override;
-  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                           const Model &model, int start_row, int start_col,
-                           int block_row, int block_col) override;
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      spot_light &light, int start_row,
+  void rasterization_block(Scene &scene, const Model &model, int start_row,
+                           int start_col, int block_row,
+                           int block_col) override;
+  void rasterization_shadow_map_block(spot_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      directional_light &light, int start_row,
+  void rasterization_shadow_map_block(directional_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override {}
   template <int N, bool isLess>
   friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,

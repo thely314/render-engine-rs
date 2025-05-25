@@ -73,17 +73,17 @@ public:
   virtual void look_at(const Scene &);
   virtual float in_shadow(const Eigen::Vector3f &point_pos,
                           const Eigen::Vector3f &normal,
-                          SHADOW_METHOD shadow_method);
+                          SHADOW_METHOD shadow_method) const;
   virtual bool in_penumbra_mask(int x, int y);
   virtual ~light() = default;
 
 protected:
   virtual float in_shadow_direct(const Eigen::Vector3f &point_pos,
-                                 const Eigen::Vector3f &normal);
+                                 const Eigen::Vector3f &normal) const;
   virtual float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                              const Eigen::Vector3f &normal);
+                              const Eigen::Vector3f &normal) const;
   virtual float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                               const Eigen::Vector3f &normal);
+                               const Eigen::Vector3f &normal) const;
   virtual void generate_penumbra_mask_block(const Scene &scene, int start_row,
                                             int start_col, int block_row,
                                             int block_col);
@@ -143,19 +143,19 @@ private:
   Eigen::Matrix<float, 4, 4> mv;
   std::vector<float> z_buffer;
   std::vector<float> penumbra_mask;
-  int get_index(int x, int y);
-  int get_penumbra_mask_index(int x, int y);
+  int get_index(int x, int y) const;
+  int get_penumbra_mask_index(int x, int y) const;
   void look_at(const Scene &) override;
   float in_shadow(const Eigen::Vector3f &point_pos,
                   const Eigen::Vector3f &normal,
-                  SHADOW_METHOD shadow_method) override;
+                  SHADOW_METHOD shadow_method) const override;
   bool in_penumbra_mask(int x, int y) override;
   float in_shadow_direct(const Eigen::Vector3f &point_pos,
-                         const Eigen::Vector3f &normal) override;
+                         const Eigen::Vector3f &normal) const override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                      const Eigen::Vector3f &normal) override;
+                      const Eigen::Vector3f &normal) const override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                       const Eigen::Vector3f &normal) override;
+                       const Eigen::Vector3f &normal) const override;
   void generate_penumbra_mask_block(const Scene &scene, int start_row,
                                     int start_col, int block_row,
                                     int block_col) override;
@@ -215,19 +215,19 @@ private:
   Eigen::Matrix<float, 4, 4> mv;
   std::vector<float> z_buffer;
   std::vector<float> penumbra_mask;
-  int get_index(int x, int y);
-  int get_penumbra_mask_index(int x, int y);
+  int get_index(int x, int y) const;
+  int get_penumbra_mask_index(int x, int y) const;
   void look_at(const Scene &) override;
   bool in_penumbra_mask(int x, int y) override;
   float in_shadow(const Eigen::Vector3f &point_pos,
                   const Eigen::Vector3f &normal,
-                  SHADOW_METHOD shadow_method) override;
+                  SHADOW_METHOD shadow_method) const override;
   float in_shadow_direct(const Eigen::Vector3f &point_pos,
-                         const Eigen::Vector3f &normal) override;
+                         const Eigen::Vector3f &normal) const override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                      const Eigen::Vector3f &normal) override;
+                      const Eigen::Vector3f &normal) const override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                       const Eigen::Vector3f &normal) override;
+                       const Eigen::Vector3f &normal) const override;
   void generate_penumbra_mask_block(const Scene &scene, int start_row,
                                     int start_col, int block_row,
                                     int block_col) override;

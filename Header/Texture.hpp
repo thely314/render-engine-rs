@@ -6,7 +6,6 @@ struct Texture {
   Texture(const char *filename, int desire_channels = 3);
   int get_index(int x, int y);
   Eigen::Vector3f get_color(float u, float v);
-  float get_noise(float u, float v);
   ~Texture();
   unsigned char *data;
   int width;

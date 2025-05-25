@@ -38,19 +38,13 @@ public:
   ~Model();
 
 private:
-  void rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                     const Model &model) override;
-  void rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
-                                spot_light &light) override;
-  void rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                           const Model &model, int start_row, int start_col,
-                           int block_row, int block_col) override;
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      spot_light &light, int start_row,
+  void rasterization_block(Scene &scene, const Model &model, int start_row,
+                           int start_col, int block_row,
+                           int block_col) override;
+  void rasterization_shadow_map_block(spot_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
-  void rasterization_shadow_map_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                      directional_light &light, int start_row,
+  void rasterization_shadow_map_block(directional_light &light, int start_row,
                                       int start_col, int block_row,
                                       int block_col) override;
   void to_NDC(int width, int height);

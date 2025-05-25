@@ -61,60 +61,40 @@ void Model::add(const Triangle &obj) { triangles.push_back(obj); }
 
 Model::~Model() {}
 
-void Model::rasterization(const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene,
-                          const Model &model) {
-  int i = 0;
-  for (auto &&obj : sub_models) {
-    obj->rasterization(mvp, scene, *this);
-  }
-  for (auto &&obj : clip_triangles) {
-    obj.rasterization(mvp, scene, *this);
-  }
-}
-void Model::rasterization_shadow_map(const Eigen::Matrix<float, 4, 4> &mvp,
-                                     spot_light &light) {
-  for (auto &&obj : sub_models) {
-    obj->rasterization_shadow_map(mvp, light);
-  }
-  for (auto &&obj : clip_triangles) {
-    obj.rasterization_shadow_map(mvp, light);
-  }
-}
-void Model::rasterization_block(const Eigen::Matrix<float, 4, 4> &mvp,
-                                Scene &scene, const Model &model, int start_row,
+void Model::rasterization_block(Scene &scene, const Model &model, int start_row,
                                 int start_col, int block_row, int block_col) {
   for (auto &&obj : sub_models) {
-    obj->rasterization_block(mvp, scene, *this, start_row, start_col, block_row,
+    obj->rasterization_block(scene, *this, start_row, start_col, block_row,
                              block_col);
   }
   for (auto &&obj : clip_triangles) {
-    obj.rasterization_block(mvp, scene, *this, start_row, start_col, block_row,
+    obj.rasterization_block(scene, *this, start_row, start_col, block_row,
                             block_col);
   }
 }
-void Model::rasterization_shadow_map_block(
-    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
-    int start_col, int block_row, int block_col) {
+void Model::rasterization_shadow_map_block(spot_light &light, int start_row,
+                                           int start_col, int block_row,
+                                           int block_col) {
   for (auto &&obj : sub_models) {
-    obj->rasterization_shadow_map_block(mvp, light, start_row, start_col,
-                                        block_row, block_col);
+    obj->rasterization_shadow_map_block(light, start_row, start_col, block_row,
+                                        block_col);
   }
   for (auto &&obj : clip_triangles) {
-    obj.rasterization_shadow_map_block(mvp, light, start_row, start_col,
-                                       block_row, block_col);
+    obj.rasterization_shadow_map_block(light, start_row, start_col, block_row,
+                                       block_col);
   }
 }
 
-void Model::rasterization_shadow_map_block(
-    const Eigen::Matrix<float, 4, 4> &mvp, directional_light &light,
-    int start_row, int start_col, int block_row, int block_col) {
+void Model::rasterization_shadow_map_block(directional_light &light,
+                                           int start_row, int start_col,
+                                           int block_row, int block_col) {
   for (auto &&obj : sub_models) {
-    obj->rasterization_shadow_map_block(mvp, light, start_row, start_col,
-                                        block_row, block_col);
+    obj->rasterization_shadow_map_block(light, start_row, start_col, block_row,
+                                        block_col);
   }
   for (auto &&obj : clip_triangles) {
-    obj.rasterization_shadow_map_block(mvp, light, start_row, start_col,
-                                       block_row, block_col);
+    obj.rasterization_shadow_map_block(light, start_row, start_col, block_row,
+                                       block_col);
   }
 }
 

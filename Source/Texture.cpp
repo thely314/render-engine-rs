@@ -33,10 +33,4 @@ Eigen::Vector3f Texture::get_color(float u, float v) {
       (1 - h_rate) * data[idx[2] + 2] + h_rate * data[idx[3] + 2]};
   return (v_rate * color_top + (1 - v_rate) * color_bottom) / 255.0f;
 }
-float Texture::get_noise(float u, float v) {
-  // 取噪声就不搞双线性插值了
-  int x = std::clamp((int)(u * width), 0, width - 1);
-  int y = std::clamp((int)(v * height), 0, height - 1);
-  return data[get_index(x, y)] / 255.0f;
-}
 Texture::~Texture() { delete[] data; }

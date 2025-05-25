@@ -21,24 +21,24 @@ void light::look_at(const Scene &scene) {}
 
 float light::in_shadow(const Eigen::Vector3f &point_pos,
                        const Eigen::Vector3f &normal,
-                       SHADOW_METHOD shadow_method) {
+                       SHADOW_METHOD shadow_method) const {
   return 1.0f;
 }
 
 bool light::in_penumbra_mask(int x, int y) { return false; }
 
 float light::in_shadow_direct(const Eigen::Vector3f &point_pos,
-                              const Eigen::Vector3f &normal) {
+                              const Eigen::Vector3f &normal) const {
   return 1.0f;
 }
 
 float light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                           const Eigen::Vector3f &normal) {
+                           const Eigen::Vector3f &normal) const {
   return 1.0f;
 }
 
 float light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                            const Eigen::Vector3f &normal) {
+                            const Eigen::Vector3f &normal) const {
   return 1.0f;
 }
 

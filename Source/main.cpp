@@ -163,8 +163,8 @@ int main() {
   l1->set_intensity({250, 250, 250});
   l1->set_aspect_ratio(1.0f);
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  l1->set_pcf_sample_accelerate_status(false);
-  l1->set_pcss_sample_accelerate_status(false);
+  l1->set_pcf_sample_accelerate_status(true);
+  l1->set_pcss_sample_accelerate_status(true);
   l1->set_penumbra_mask_status(false);
 
   // auto l2 = std::make_shared<directional_light>();

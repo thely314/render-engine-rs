@@ -37,7 +37,6 @@ public:
   void add_model(const std::shared_ptr<Model> &model);
   void add_light(const std::shared_ptr<light> &light);
   void save_to_file(std::string filename);
-
   int get_index(int x, int y) const;
   int get_penumbra_mask_index(int x, int y) const;
   void set_eye_pos(const Eigen::Vector3f &eye_pos);

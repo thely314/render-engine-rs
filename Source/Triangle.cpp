@@ -20,6 +20,17 @@ void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
 
 void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
                     const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {
+  Eigen::Vector3f view_space_pos[3];
+  for (int i = 0; i != 3; ++i) {
+    view_space_pos[i] = (mv * vertexs[i].pos.homogeneous()).head<3>();
+  }
+  Eigen::Vector3f normal = (view_space_pos[1] - view_space_pos[0])
+                               .cross(view_space_pos[2] - view_space_pos[1]);
+  for (int i = 0; i != 3; ++i) {
+    if (normal.dot(-view_space_pos[i]) < EPSILON) {
+      return;
+    }
+  }
   std::vector<Triangle_rasterization> triangles{*this};
   triangles[0].vertexs[0].transform_pos =
       mvp * triangles[0].vertexs[0].pos.homogeneous();
@@ -49,17 +60,6 @@ void Triangle_rasterization::modeling(
   }
 }
 
-void Triangle_rasterization::rasterization(
-    const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene, const Model &model) {
-  rasterization_block(mvp, scene, model, 0, 0, scene.width, scene.height);
-}
-
-void Triangle_rasterization::rasterization_shadow_map(
-    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light) {
-  rasterization_shadow_map_block(mvp, light, 0, 0, light.zbuffer_width,
-                                 light.zbuffer_height);
-}
-
 Triangle_rasterization::Triangle_rasterization(
     const Triangle &normal_triangle) {
   vertexs[0] = {normal_triangle.vertexs[0].pos,
@@ -84,9 +84,10 @@ Triangle_rasterization::Triangle_rasterization(const Vertex_rasterization &v0,
                                                const Vertex_rasterization &v2)
     : vertexs{v0, v1, v2} {}
 
-void Triangle_rasterization::rasterization_block(
-    const Eigen::Matrix<float, 4, 4> &mvp, Scene &scene, const Model &model,
-    int start_row, int start_col, int block_row, int block_col) {
+void Triangle_rasterization::rasterization_block(Scene &scene,
+                                                 const Model &model,
+                                                 int start_row, int start_col,
+                                                 int block_row, int block_col) {
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
@@ -204,9 +205,11 @@ void Triangle_rasterization::rasterization_block(
   }
 }
 
-void Triangle_rasterization::rasterization_shadow_map_block(
-    const Eigen::Matrix<float, 4, 4> &mvp, spot_light &light, int start_row,
-    int start_col, int block_row, int block_col) {
+void Triangle_rasterization::rasterization_shadow_map_block(spot_light &light,
+                                                            int start_row,
+                                                            int start_col,
+                                                            int block_row,
+                                                            int block_col) {
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
@@ -253,8 +256,8 @@ void Triangle_rasterization::rasterization_shadow_map_block(
 }
 
 void Triangle_rasterization::rasterization_shadow_map_block(
-    const Eigen::Matrix<float, 4, 4> &mvp, directional_light &light,
-    int start_row, int start_col, int block_row, int block_col) {
+    directional_light &light, int start_row, int start_col, int block_row,
+    int block_col) {
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
@@ -307,35 +310,6 @@ void Triangle_rasterization::to_NDC(int width, int height) {
         (vertexs[i].transform_pos.x() + 1) * 0.5f * width;
     vertexs[i].transform_pos.y() =
         (vertexs[i].transform_pos.y() + 1) * 0.5f * height;
-  }
-}
-void Triangle_rasterization::clip(const Eigen::Matrix<float, 4, 4> &mvp,
-                                  const Eigen::Matrix<float, 4, 4> &mv,
-                                  Model &parent) {
-  Eigen::Vector3f view_space_pos[3];
-  view_space_pos[0] = (mv * vertexs[0].pos.homogeneous()).head<3>();
-  view_space_pos[1] = (mv * vertexs[1].pos.homogeneous()).head<3>();
-  view_space_pos[2] = (mv * vertexs[2].pos.homogeneous()).head<3>();
-  Eigen::Vector3f normal = (view_space_pos[1] - view_space_pos[0])
-                               .cross(view_space_pos[2] - view_space_pos[1]);
-  if (normal.z() < -EPSILON) {
-    return;
-  }
-  std::vector<Triangle_rasterization> triangles{*this};
-  triangles[0].vertexs[0].transform_pos =
-      mvp * triangles[0].vertexs[0].pos.homogeneous();
-  triangles[0].vertexs[1].transform_pos =
-      mvp * triangles[0].vertexs[1].pos.homogeneous();
-  triangles[0].vertexs[2].transform_pos =
-      mvp * triangles[0].vertexs[2].pos.homogeneous();
-  clip_triangles<2, true>(triangles);
-  clip_triangles<2, false>(triangles);
-  clip_triangles<0, true>(triangles);
-  clip_triangles<0, false>(triangles);
-  clip_triangles<1, true>(triangles);
-  clip_triangles<1, false>(triangles);
-  for (auto obj : triangles) {
-    parent.clip_triangles.push_back(obj);
   }
 }
 
