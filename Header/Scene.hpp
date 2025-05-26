@@ -41,6 +41,8 @@ public:
   int get_penumbra_mask_index(int x, int y) const;
   void set_eye_pos(const Eigen::Vector3f &eye_pos);
   void set_view_dir(const Eigen::Vector3f &view_dir);
+  void set_fov(float fov);
+  void set_aspect_ratio(float aspect_ratio);
   void set_zNear(float zNear);
   void set_zFar(float zFar);
   void set_width(int width);
@@ -50,6 +52,8 @@ public:
                                int block_row, int block_col)> &shader);
   Eigen::Vector3f get_eye_pos() const;
   Eigen::Vector3f get_view_dir() const;
+  float get_fov() const;
+  float get_aspect_ratio() const;
   float get_zNear() const;
   float get_zFar() const;
   int get_width() const;
@@ -70,6 +74,8 @@ public:
 private:
   Eigen::Vector3f eye_pos;
   Eigen::Vector3f view_dir;
+  float fov;
+  float aspect_ratio;
   float zNear;
   float zFar;
   int width;

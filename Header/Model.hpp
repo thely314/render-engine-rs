@@ -1,4 +1,5 @@
 #pragma once
+#include "Eigen/Core"
 #include "Object.hpp"
 #include "Scene.hpp"
 #include "Texture.hpp"
@@ -6,6 +7,9 @@
 #include "light.hpp"
 #include <Triangle.hpp>
 #include <array>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 #include <global.hpp>
 #include <memory>
 #include <vector>
@@ -26,6 +30,11 @@ public:
     NORMAL_TEXTURE,
     GLOW_TEXTURE
   };
+  Model();
+  Model(const char *model_path,
+        Eigen::Vector3f default_color = {0.5f, 0.5f, 0.5f});
+  void load(const char *model_path,
+            Eigen::Vector3f default_color = {0.5f, 0.5f, 0.5f});
   void set_pos(const Eigen::Vector3f &pos);
   Eigen::Vector3f get_pos() const;
   void set_scale(float rate);
@@ -35,6 +44,7 @@ public:
   void modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) override;
   void add(const std::shared_ptr<Model> &obj);
   void add(const Triangle &obj);
+  void flush();
   ~Model();
 
 private:
@@ -52,10 +62,13 @@ private:
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
             const Eigen::Matrix<float, 4, 4> &mv);
+  void processNode(aiNode *node, const aiScene *scene,
+                   Eigen::Vector3f default_color);
+  void processMesh(aiMesh *mesh, Eigen::Vector3f default_color);
   std::vector<std::shared_ptr<Model>> sub_models;
   std::vector<Triangle> triangles;
   std::vector<Triangle_rasterization> clip_triangles;
-  Eigen::Vector3f pos = Eigen::Vector3f{0.0f, 0.0f, 0.0f};
-  float scale = 1.0;
+  Eigen::Vector3f pos;
+  float scale;
   std::array<std::shared_ptr<Texture>, TEXTURE_NUM> textures{};
 };

@@ -14,8 +14,9 @@
 #include <stb_image_write.h>
 
 Scene::Scene(int width, int height)
-    : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, zNear(-0.1f),
-      zFar(-1000.0f), width(width), height(height) {}
+    : eye_pos{0.0f, 0.0f, 0.0f}, view_dir{0.0f, 0.0f, -1.0f}, fov(45.0f),
+      aspect_ratio(1.0f), zNear(-0.1f), zFar(-1000.0f), width(width),
+      height(height) {}
 
 void Scene::start_render() {
   frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
@@ -40,8 +41,8 @@ void Scene::start_render() {
   std::fill(z_buffer.begin(), z_buffer.end(), INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
-                             projection =
-                                 get_projection_matrix(45, 1.0f, zNear, zFar);
+                             projection = get_projection_matrix(
+                                 fov, aspect_ratio, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   Eigen::Matrix<float, 4, 4> mv = view * model;
   for (auto &&light : lights) {
@@ -105,18 +106,12 @@ void Scene::save_to_file(std::string filename) {
   std::vector<unsigned char> data(width * height * 3);
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
-      data[3 * (y * width + x)] =
-          std::clamp(frame_buffer[width * (height - y - 1) + x].x(), 0.0f,
-                     1.0f) *
-          255;
-      data[3 * (y * width + x) + 1] =
-          std::clamp(frame_buffer[width * (height - y - 1) + x].y(), 0.0f,
-                     1.0f) *
-          255;
-      data[3 * (y * width + x) + 2] =
-          std::clamp(frame_buffer[width * (height - y - 1) + x].z(), 0.0f,
-                     1.0f) *
-          255;
+      for (int i = 0; i != 3; ++i) {
+        data[3 * (y * width + x) + i] =
+            roundf(std::clamp(frame_buffer[width * (height - y - 1) + x][i],
+                              0.0f, 1.0f) *
+                   255);
+      }
     }
   }
   stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
@@ -130,6 +125,11 @@ void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
 
 void Scene::set_view_dir(const Eigen::Vector3f &view_dir) {
   this->view_dir = view_dir.normalized();
+}
+void Scene::set_fov(float fov) { this->fov = fov; }
+
+void Scene::set_aspect_ratio(float aspect_ratio) {
+  this->aspect_ratio = aspect_ratio;
 }
 
 void Scene::set_zNear(float zNear) { this->zNear = zNear; }
@@ -149,6 +149,10 @@ void Scene::set_shader(
 Eigen::Vector3f Scene::get_eye_pos() const { return eye_pos; }
 
 Eigen::Vector3f Scene::get_view_dir() const { return view_dir; }
+
+float Scene::get_fov() const { return fov; }
+
+float Scene::get_aspect_ratio() const { return aspect_ratio; }
 
 float Scene::get_zNear() const { return zNear; }
 

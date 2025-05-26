@@ -5,60 +5,11 @@
 #include "Triangle.hpp"
 #include "global.hpp"
 #include "light.hpp"
-#include <assimp/Importer.hpp>
-#include <assimp/postprocess.h>
-#include <assimp/scene.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <format>
 #include <memory>
-void processMesh(aiMesh *mesh, Model &model) {
-  std::vector<Vertex> vertices;
-  std::vector<int> indices;
-  for (int i = 0; i < mesh->mNumVertices; i++) {
-    Vertex vertex;
-    vertex.pos = Eigen::Vector3f(mesh->mVertices[i].x, mesh->mVertices[i].y,
-                                 mesh->mVertices[i].z);
-
-    if (mesh->HasNormals()) {
-      vertex.normal = Eigen::Vector3f(mesh->mNormals[i].x, mesh->mNormals[i].y,
-                                      mesh->mNormals[i].z);
-    }
-
-    if (mesh->mTextureCoords[0]) {
-      vertex.texture_coords = Eigen::Vector2f(mesh->mTextureCoords[0][i].x,
-                                              mesh->mTextureCoords[0][i].y);
-    } else {
-      vertex.texture_coords = Eigen::Vector2f(0.0f, 0.0f);
-    }
-    if (mesh->mColors[0]) {
-      vertex.color = Eigen::Vector3f(mesh->mColors[i]->r, mesh->mColors[i]->g,
-                                     mesh->mColors[i]->b);
-    } else {
-      vertex.color = Eigen::Vector3f(0.5f, 0.5f, 0.5f);
-    }
-    vertices.push_back(vertex);
-  }
-  for (int i = 0; i < mesh->mNumFaces; i++) {
-    aiFace face = mesh->mFaces[i];
-    if (face.mNumIndices == 3) {
-      const Vertex &v0 = vertices[face.mIndices[0]];
-      const Vertex &v1 = vertices[face.mIndices[1]];
-      const Vertex &v2 = vertices[face.mIndices[2]];
-      model.add(Triangle(v0, v1, v2));
-    }
-  }
-}
-void processNode(aiNode *node, const aiScene *scene, Model &model) {
-  for (int i = 0; i != node->mNumMeshes; i++) {
-    aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-    processMesh(mesh, model);
-  }
-  for (int i = 0; i != node->mNumChildren; i++) {
-    processNode(node->mChildren[i], scene, model);
-  }
-}
 void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
                     int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
@@ -104,58 +55,31 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
   }
 }
 int main() {
-  Assimp::Importer importer;
-  const aiScene *scene = importer.ReadFile(
+  auto model = std::make_shared<Model>(
+      // "../models/tallbox.obj"
+      "../models/diablo3/diablo3_pose.obj"
       //
-      "../models/tallbox.obj",
-      // "../models/diablo3/diablo3_pose.obj",
-      aiProcess_Triangulate | aiProcess_GenNormals);
-  if (scene == nullptr) {
-    fprintf(stderr, "%s\n", importer.GetErrorString());
-    return 1;
-  }
-  auto model = std::make_shared<Model>();
+  );
 
-  processNode(scene->mRootNode, scene, *model);
+  std::shared_ptr<Texture> diffuse_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
+  model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
 
-  // std::shared_ptr<Texture> diffuse_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  // model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
+  std::shared_ptr<Texture> specular_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
+  model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
 
-  // std::shared_ptr<Texture> specular_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  // model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
+  std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
+      "../models/diablo3/diablo3_pose_nm_tangent.tga");
+  model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
 
-  // std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
-  //     "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  // model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
+  std::shared_ptr<Texture> glow_texture =
+      std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
+  model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  // std::shared_ptr<Texture> glow_texture =
-  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  // model->set_texture(glow_texture, Model::GLOW_TEXTURE);
-
-  // model->set_scale(2.5f);
-  model->set_pos({0.0f, -2.45f, 0.0f});
-  Vertex floor_vertex[4];
-  floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
-                           {0.0f, 1.0f, 0.0f},
-                           {0.5f, 0.5f, 0.5f},
-                           {0.0f, 0.0f}};
-  floor_vertex[1] = Vertex{{10.0f, -2.45f, 10.0f},
-                           {0.0f, 1.0f, 0.0f},
-                           {0.5f, 0.5f, 0.5f},
-                           {0.0f, 0.0f}};
-  floor_vertex[2] = Vertex{{10.0f, -2.45f, -10.0f},
-                           {0.0f, 1.0f, 0.0f},
-                           {0.5f, 0.5f, 0.5f},
-                           {0.0f, 0.0f}};
-  floor_vertex[3] = Vertex{{-10.0f, -2.45f, 10.0f},
-                           {0.0f, 1.0f, 0.0f},
-                           {0.5f, 0.5f, 0.5f},
-                           {0.0f, 0.0f}};
-  auto floor = std::make_shared<Model>();
-  floor->add(Triangle(floor_vertex[0], floor_vertex[1], floor_vertex[2]));
-  floor->add(Triangle(floor_vertex[0], floor_vertex[3], floor_vertex[1]));
+  model->set_scale(2.5f);
+  auto floor = std::make_shared<Model>("../models/floor.obj");
+  floor->set_pos({0.0f, -2.45f, 0.0f});
   Scene my_scene = Scene(1024, 1024);
   my_scene.add_model(model);
   my_scene.add_model(floor);
@@ -185,9 +109,9 @@ int main() {
   // model->modeling(get_model_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }
