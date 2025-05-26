@@ -3,14 +3,15 @@
 #include "light.hpp"
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <thread>
 
-constexpr float spot_light_bias_scale = 0.04f; // 经验值
+constexpr float spot_light_bias_scale = 0.05f; // 经验值
 constexpr int spot_light_sample_num = 64;
 spot_light::spot_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
+      pixel_radius(0.0f), zbuffer_width(2048), zbuffer_height(2048),
       penumbra_mask_width(0), penumbra_mask_height(0), enable_shadow(true),
       enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
       enable_penumbra_mask(true), mvp(Eigen::Matrix<float, 4, 4>::Identity()),
@@ -352,13 +353,38 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   }
   return unshadow_num * 1.0f / pcf_num;
 }
-
-void spot_light::generate_penumbra_mask_block(const Scene &scene, int start_row,
-                                              int start_col, int block_row,
-                                              int block_col) {
+void spot_light::generate_penumbra_mask(const Scene &scene) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }
+  std::vector<std::thread> threads;
+  int penumbra_width = ceilf(scene.width * 0.25f);
+  int penumbra_height = ceilf(scene.height * 0.25f);
+  int penumbra_mask_thread_num = std::min(penumbra_height, maximum_thread_num);
+  int penumbra_mask_thread_row_num =
+      ceilf(penumbra_height * 1.0f / penumbra_mask_thread_num);
+  auto penumbra_mask_lambda = [](spot_light &light, const Scene &scene,
+                                 int start_row, int block_row) {
+    light.generate_penumbra_mask_block(scene, start_row, 0, block_row,
+                                       ceilf(scene.width * 0.25f));
+  };
+  for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
+    threads.emplace_back(penumbra_mask_lambda, std::ref(*this), std::ref(scene),
+                         penumbra_mask_thread_row_num * i,
+                         penumbra_mask_thread_row_num);
+  }
+  threads.emplace_back(penumbra_mask_lambda, std::ref(*this), std::ref(scene),
+                       penumbra_mask_thread_row_num *
+                           (penumbra_mask_thread_num - 1),
+                       penumbra_height - penumbra_mask_thread_row_num *
+                                             (penumbra_mask_thread_num - 1));
+  for (auto &&thread : threads) {
+    thread.join();
+  }
+}
+void spot_light::generate_penumbra_mask_block(const Scene &scene, int start_row,
+                                              int start_col, int block_row,
+                                              int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       x = std::clamp(x, 0, penumbra_mask_width - 1);

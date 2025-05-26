@@ -72,31 +72,8 @@ void Scene::start_render() {
   }
   threads.clear();
   int box_radius = roundf(4.0f * std::max(width, height) / 1024.0f);
-  int penumbra_width = ceilf(width * 0.25f);
-  int penumbra_height = ceilf(height * 0.25f);
-  int penumbra_mask_thread_num = std::min(penumbra_height, maximum_thread_num);
-  int penumbra_mask_thread_row_num =
-      ceilf(penumbra_height * 1.0f / penumbra_mask_thread_num);
-  auto penumbra_mask_lambda = [](Scene &scene, int start_row, int block_row) {
-    for (auto &&light : scene.lights) {
-      light->generate_penumbra_mask_block(scene, start_row, 0, block_row,
-                                          ceilf(scene.width * 0.25f));
-    }
-  };
-  for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
-    threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
-                         penumbra_mask_thread_row_num * i,
-                         penumbra_mask_thread_row_num);
-  }
-  threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
-                       penumbra_mask_thread_row_num * (thread_num - 1),
-                       penumbra_height - penumbra_mask_thread_row_num *
-                                             (penumbra_mask_thread_num - 1));
-  for (auto &&thread : threads) {
-    thread.join();
-  }
-  threads.clear();
   for (auto &&light : lights) {
+    light->generate_penumbra_mask(*this);
     light->box_blur_penumbra_mask(box_radius);
   }
   auto render_lambda = [](Scene &scene, int start_row, int block_row) {

@@ -32,7 +32,12 @@ void processMesh(aiMesh *mesh, Model &model) {
     } else {
       vertex.texture_coords = Eigen::Vector2f(0.0f, 0.0f);
     }
-
+    if (mesh->mColors[0]) {
+      vertex.color = Eigen::Vector3f(mesh->mColors[i]->r, mesh->mColors[i]->g,
+                                     mesh->mColors[i]->b);
+    } else {
+      vertex.color = Eigen::Vector3f(0.5f, 0.5f, 0.5f);
+    }
     vertices.push_back(vertex);
   }
   for (int i = 0; i < mesh->mNumFaces; i++) {
@@ -102,8 +107,8 @@ int main() {
   Assimp::Importer importer;
   const aiScene *scene = importer.ReadFile(
       //
-      // "../models/tallbox.obj",
-      "../models/diablo3/diablo3_pose.obj",
+      "../models/tallbox.obj",
+      // "../models/diablo3/diablo3_pose.obj",
       aiProcess_Triangulate | aiProcess_GenNormals);
   if (scene == nullptr) {
     fprintf(stderr, "%s\n", importer.GetErrorString());
@@ -113,24 +118,24 @@ int main() {
 
   processNode(scene->mRootNode, scene, *model);
 
-  std::shared_ptr<Texture> diffuse_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
+  // std::shared_ptr<Texture> diffuse_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
+  // model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
 
-  std::shared_ptr<Texture> specular_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
+  // std::shared_ptr<Texture> specular_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
+  // model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
 
-  std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
-      "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
+  // std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
+  //     "../models/diablo3/diablo3_pose_nm_tangent.tga");
+  // model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
 
-  std::shared_ptr<Texture> glow_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  model->set_texture(glow_texture, Model::GLOW_TEXTURE);
+  // std::shared_ptr<Texture> glow_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
+  // model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  model->set_scale(2.5f);
-  // model->set_pos({0.0f, -2.45f, 0.0f});
+  // model->set_scale(2.5f);
+  model->set_pos({0.0f, -2.45f, 0.0f});
   Vertex floor_vertex[4];
   floor_vertex[0] = Vertex{{-10.0f, -2.45f, -10.0f},
                            {0.0f, 1.0f, 0.0f},
@@ -163,9 +168,9 @@ int main() {
   l1->set_intensity({250, 250, 250});
   l1->set_aspect_ratio(1.0f);
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  l1->set_pcf_sample_accelerate_status(true);
+  l1->set_pcf_sample_accelerate_status(false);
   l1->set_pcss_sample_accelerate_status(true);
-  l1->set_penumbra_mask_status(false);
+  l1->set_penumbra_mask_status(true);
 
   // auto l2 = std::make_shared<directional_light>();
   // l2->set_pos({10, 10, 10});
@@ -180,9 +185,9 @@ int main() {
   // model->modeling(get_model_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  // for (int i = 0; i != 36; ++i) {
-  //   my_scene.start_render();
-  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
-  //   model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  // }
+  for (int i = 0; i != 36; ++i) {
+    my_scene.start_render();
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
+    model->modeling(get_model_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  }
 }

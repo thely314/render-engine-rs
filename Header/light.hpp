@@ -84,9 +84,7 @@ protected:
                               const Eigen::Vector3f &normal) const;
   virtual float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                                const Eigen::Vector3f &normal) const;
-  virtual void generate_penumbra_mask_block(const Scene &scene, int start_row,
-                                            int start_col, int block_row,
-                                            int block_col);
+  virtual void generate_penumbra_mask(const Scene &scene);
   virtual void box_blur_penumbra_mask(int radius);
   Eigen::Vector3f pos;
   Eigen::Vector3f intensity;
@@ -156,9 +154,10 @@ private:
                       const Eigen::Vector3f &normal) const override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                        const Eigen::Vector3f &normal) const override;
+  void generate_penumbra_mask(const Scene &scene) override;
   void generate_penumbra_mask_block(const Scene &scene, int start_row,
                                     int start_col, int block_row,
-                                    int block_col) override;
+                                    int block_col);
   void box_blur_penumbra_mask(int radius) override;
 };
 class directional_light : public light {
@@ -228,8 +227,9 @@ private:
                       const Eigen::Vector3f &normal) const override;
   float in_shadow_pcss(const Eigen::Vector3f &point_pos,
                        const Eigen::Vector3f &normal) const override;
+  void generate_penumbra_mask(const Scene &scene) override;
   void generate_penumbra_mask_block(const Scene &scene, int start_row,
                                     int start_col, int block_row,
-                                    int block_col) override;
+                                    int block_col);
   void box_blur_penumbra_mask(int radius) override;
 };

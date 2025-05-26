@@ -183,7 +183,9 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
                 model.get_texture(Model::DIFFUSE_TEXTURE)
                     ->get_color(point_uv.x(), point_uv.y());
           } else {
-            scene.diffuse_buffer[scene.get_index(x, y)] = {0.5f, 0.5f, 0.5f};
+            scene.diffuse_buffer[scene.get_index(x, y)] =
+                alpha * vertexs[0].color + beta * vertexs[1].color +
+                gamma * vertexs[2].color;
           }
           if (model.get_texture(Model::SPECULAR_TEXTURE) != nullptr) {
             scene.specular_buffer[scene.get_index(x, y)] =

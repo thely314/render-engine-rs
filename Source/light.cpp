@@ -42,8 +42,6 @@ float light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   return 1.0f;
 }
 
-void light::generate_penumbra_mask_block(const Scene &scene, int start_row,
-                                         int start_col, int block_row,
-                                         int block_col) {}
+void light::generate_penumbra_mask(const Scene &scene) {}
 
 void light::box_blur_penumbra_mask(int radius) {}
