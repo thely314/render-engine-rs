@@ -1,12 +1,13 @@
 #pragma once
 #include "Eigen/Core"
-#include "Object.hpp"
 #include "Scene.hpp"
 #include "light.hpp"
+#include <functional>
 #include <tuple>
 #include <vector>
 
 struct Model;
+struct Triangle_rasterization;
 struct Vertex {
   // 这三个运算符是给插值运算用的
   friend Vertex operator+(const Vertex &x, const Vertex &y) {
@@ -26,7 +27,7 @@ struct Vertex {
   Eigen::Vector3f color;
   Eigen::Vector2f texture_coords;
 };
-class Triangle : public Object {
+class Triangle {
 
   friend struct Scene;
   friend struct Model;
@@ -36,21 +37,20 @@ class Triangle : public Object {
 public:
   Triangle() = default;
   Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2);
-  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix);
   Vertex vertexs[3];
 
 private:
   void rasterization_block(Scene &scene, const Model &model, int start_row,
-                           int start_col, int block_row,
-                           int block_col) override {}
+                           int start_col, int block_row, int block_col) {}
   void rasterization_shadow_map_block(spot_light &light, int start_row,
                                       int start_col, int block_row,
-                                      int block_col) override {}
+                                      int block_col) {}
   void rasterization_shadow_map_block(directional_light &light, int start_row,
                                       int start_col, int block_row,
-                                      int block_col) override {}
+                                      int block_col) {}
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override;
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent);
 };
 
 struct Vertex_rasterization {
@@ -79,7 +79,7 @@ struct Vertex_rasterization {
   Eigen::Vector2f texture_coords;
   Eigen::Vector4f transform_pos;
 };
-class Triangle_rasterization : public Object {
+class Triangle_rasterization {
   friend struct Triangle;
   friend struct Scene;
   friend struct Model;
@@ -92,22 +92,76 @@ public:
   Triangle_rasterization(const Vertex_rasterization &v0,
                          const Vertex_rasterization &v1,
                          const Vertex_rasterization &v2);
-  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix) override;
+  void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix);
   Vertex_rasterization vertexs[3];
 
 private:
   void rasterization_block(Scene &scene, const Model &model, int start_row,
-                           int start_col, int block_row,
-                           int block_col) override;
+                           int start_col, int block_row, int block_col);
   void rasterization_shadow_map_block(spot_light &light, int start_row,
                                       int start_col, int block_row,
-                                      int block_col) override;
+                                      int block_col);
   void rasterization_shadow_map_block(directional_light &light, int start_row,
                                       int start_col, int block_row,
-                                      int block_col) override;
+                                      int block_col);
+  template <bool IsProjection>
+  void rasterization_shadow_map_block(
+      std::vector<float> &z_buffer, int start_row, int start_col, int block_row,
+      int block_col,
+      const std::function<float(float, float)> &depth_transformer,
+      const std::function<int(int, int)> &get_index) {
+    if (block_row <= 0 || block_col <= 0) {
+      return;
+    }
+    int box_left = (int)std::min(
+        vertexs[0].transform_pos.x(),
+        std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
+    int box_right = std::max(
+        vertexs[0].transform_pos.x(),
+        std::max(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
+    int box_bottom = std::min(
+        vertexs[0].transform_pos.y(),
+        std::min(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
+    int box_top = std::max(
+        vertexs[0].transform_pos.y(),
+        std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
+    box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
+    box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
+    box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
+    box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
+    for (int y = box_bottom; y <= box_top; ++y) {
+      for (int x = box_left; x <= box_right; ++x) {
+        auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
+            vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
+            vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
+        if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
+          if constexpr (IsProjection) {
+            alpha = alpha / -vertexs[0].transform_pos.w();
+            beta = beta / -vertexs[1].transform_pos.w();
+            gamma = gamma / -vertexs[2].transform_pos.w();
+            float w_inter = 1.0f / (alpha + beta + gamma);
+            alpha *= w_inter;
+            beta *= w_inter;
+            gamma *= w_inter;
+          }
+          float point_transform_pos_z = alpha * vertexs[0].transform_pos.z() +
+                                        beta * vertexs[1].transform_pos.z() +
+                                        gamma * vertexs[2].transform_pos.z();
+          float point_transform_pos_w = alpha * vertexs[0].transform_pos.w() +
+                                        beta * vertexs[1].transform_pos.w() +
+                                        gamma * vertexs[2].transform_pos.w();
+          float depth =
+              depth_transformer(point_transform_pos_z, point_transform_pos_w);
+          if (depth > z_buffer[get_index(x, y)]) {
+            z_buffer[get_index(x, y)] = depth;
+          }
+        }
+      }
+    }
+  }
   void to_NDC(int width, int height);
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
-            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) override {}
+            const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {}
   template <int N, bool isLess>
   friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,

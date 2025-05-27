@@ -2,7 +2,6 @@
 #include "Eigen/Core"
 #include "Model.hpp"
 #include "Triangle.hpp"
-#include "global.hpp"
 #include "light.hpp"
 #include <functional>
 #include <memory>

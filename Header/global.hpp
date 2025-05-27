@@ -7,10 +7,10 @@
 #include <vector>
 
 constexpr float EPSILON = 1e-4;
-constexpr int maximum_thread_num = 8;
+constexpr int maximum_thread_num = 1;
 inline Eigen::Matrix<float, 4, 4>
-get_model_matrix(const Eigen::Vector3f &axis, float angle,
-                 const Eigen::Vector3f &move) {
+get_modeling_matrix(const Eigen::Vector3f &axis, float angle,
+                    const Eigen::Vector3f &move) {
   angle *= M_PI / 180.f;
   float cos_val = cos(angle), sin_val = sin(angle);
   Eigen::Matrix<float, 3, 3> axis_cross;
@@ -92,11 +92,3 @@ blur_penumbra_mask_vertical(const std::vector<float> &input, int width,
   }
   return output;
 }
-struct Vertex;
-struct Scene;
-struct Model;
-struct Triangle;
-struct Triangle_rasterization;
-struct light;
-struct spot_light;
-struct directional_light;

@@ -119,21 +119,39 @@ void directional_light::look_at(const Scene &scene) {
   int thread_num = std::min(zbuffer_width, maximum_thread_num);
   int thread_render_row_num = ceil(zbuffer_width * 1.0 / maximum_thread_num);
   std::vector<std::thread> threads;
-  auto render_lambda = [](const Scene &scene, directional_light &light,
-                          int start_row, int block_row) {
-    for (auto obj : scene.objects) {
-      obj->rasterization_shadow_map_block(light, start_row, 0, block_row,
-                                          light.zbuffer_width);
-    }
+  int zbuffer_width = this->zbuffer_width;
+  int zbuffer_height = this->zbuffer_height;
+  float z_near = zNear;
+  float z_far = zFar;
+  auto get_index_lambda = [zbuffer_width](int x, int y) {
+    return zbuffer_width * y + x;
   };
+  auto depth_transformer = [z_near, z_far](float z, float w) {
+    return 0.5f * (z * (z_near - z_far) + (z_near + z_far));
+  };
+  auto render_lambda =
+      [](const Scene &scene, std::vector<float> &z_buffer, int start_row,
+         int start_col, int block_row, int block_col,
+         const std::function<float(float, float)> &depth_transformer,
+         const std::function<int(int, int)> &get_index) {
+        for (auto obj : scene.objects) {
+          obj->rasterization_shadow_map_block<false>(
+              z_buffer, start_row, start_col, block_row, block_col,
+              depth_transformer, get_index);
+        }
+      };
   for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(render_lambda, std::ref(scene), std::ref(*this),
-                         thread_render_row_num * i, thread_render_row_num);
+    threads.emplace_back(render_lambda, std::ref(scene), std::ref(z_buffer),
+                         thread_render_row_num * i, 0, thread_render_row_num,
+                         zbuffer_width, std::ref(depth_transformer),
+                         std::ref(get_index_lambda));
   }
-  threads.emplace_back(render_lambda, std::ref(scene), std::ref(*this),
-                       thread_render_row_num * (thread_num - 1),
-                       zbuffer_height -
-                           thread_render_row_num * (thread_num - 1));
+  threads.emplace_back(
+      render_lambda, std::ref(scene), std::ref(z_buffer),
+      thread_render_row_num * (thread_num - 1), 0,
+      zbuffer_height - thread_render_row_num * (thread_num - 1), zbuffer_width,
+      std::ref(depth_transformer), std::ref(get_index_lambda));
+
   for (auto &&thread : threads) {
     thread.join();
   }

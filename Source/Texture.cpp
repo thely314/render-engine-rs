@@ -9,7 +9,6 @@ Texture::Texture(const char *filename, int desire_channels) {
 }
 int Texture::get_index(int x, int y) {
   return channels * (width * (height - y - 1) + x);
-  // return channels * (width * y + x);
 };
 Eigen::Vector3f Texture::get_color(float u, float v) {
   u *= width;

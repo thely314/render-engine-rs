@@ -1,5 +1,4 @@
 #pragma once
-#include "global.hpp"
 #include <Eigen/Dense>
 #include <vector>
 
@@ -126,13 +125,13 @@ private:
   float aspect_ratio;
   float zNear;
   float zFar;
-  int penumbra_mask_width;
-  int penumbra_mask_height;
   float light_size;
   float fov_factor;
   float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;
+  int penumbra_mask_width;
+  int penumbra_mask_height;
   bool enable_shadow;
   bool enable_pcf_sample_accelerate;
   bool enable_pcss_sample_accelerate;

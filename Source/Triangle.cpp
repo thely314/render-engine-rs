@@ -5,7 +5,6 @@
 #include "light.hpp"
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 
@@ -27,23 +26,21 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
   Eigen::Vector3f normal = (view_space_pos[1] - view_space_pos[0])
                                .cross(view_space_pos[2] - view_space_pos[1]);
   for (int i = 0; i != 3; ++i) {
-    if (normal.dot(-view_space_pos[i]) < EPSILON) {
+    if (normal.dot(view_space_pos[i]) > EPSILON) {
       return;
     }
   }
   std::vector<Triangle_rasterization> triangles{*this};
-  triangles[0].vertexs[0].transform_pos =
-      mvp * triangles[0].vertexs[0].pos.homogeneous();
-  triangles[0].vertexs[1].transform_pos =
-      mvp * triangles[0].vertexs[1].pos.homogeneous();
-  triangles[0].vertexs[2].transform_pos =
-      mvp * triangles[0].vertexs[2].pos.homogeneous();
+  for (int i = 0; i != 3; ++i) {
+    triangles[0].vertexs[i].transform_pos =
+        mvp * triangles[0].vertexs[i].pos.homogeneous();
+  }
   clip_triangles<2, true>(triangles);
   clip_triangles<2, false>(triangles);
-  clip_triangles<0, true>(triangles);
-  clip_triangles<0, false>(triangles);
   clip_triangles<1, true>(triangles);
   clip_triangles<1, false>(triangles);
+  clip_triangles<0, true>(triangles);
+  clip_triangles<0, false>(triangles);
   // TODO: 上锁
   for (auto &&obj : triangles) {
     parent.clip_triangles.push_back(obj);
@@ -201,102 +198,6 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
           } else {
             scene.glow_buffer[scene.get_index(x, y)] = {0.0f, 0.0f, 0.0f};
           }
-        }
-      }
-    }
-  }
-}
-
-void Triangle_rasterization::rasterization_shadow_map_block(spot_light &light,
-                                                            int start_row,
-                                                            int start_col,
-                                                            int block_row,
-                                                            int block_col) {
-  if (block_row <= 0 || block_col <= 0) {
-    return;
-  }
-  int box_left = (int)std::min(
-      vertexs[0].transform_pos.x(),
-      std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
-  int box_right = std::max(
-      vertexs[0].transform_pos.x(),
-      std::max(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
-  int box_bottom = std::min(
-      vertexs[0].transform_pos.y(),
-      std::min(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  int box_top = std::max(
-      vertexs[0].transform_pos.y(),
-      std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
-  box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
-  box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
-  box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
-  for (int y = box_bottom; y <= box_top; ++y) {
-    for (int x = box_left; x <= box_right; ++x) {
-      auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
-          vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
-          vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
-      if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
-        alpha = alpha / -vertexs[0].transform_pos.w();
-        beta = beta / -vertexs[1].transform_pos.w();
-        gamma = gamma / -vertexs[2].transform_pos.w();
-        float w_inter = 1.0f / (alpha + beta + gamma);
-        alpha *= w_inter;
-        beta *= w_inter;
-        gamma *= w_inter;
-        float point_transform_pos_w = alpha * vertexs[0].transform_pos.w() +
-                                      beta * vertexs[1].transform_pos.w() +
-                                      gamma * vertexs[2].transform_pos.w();
-        // 为了方便PCSS计算，shadow map中存的是视图空间的深度而不是NDC空间的
-        // 而且NDC空间不线性导致bias很难调
-        if (point_transform_pos_w > light.z_buffer[light.get_index(x, y)]) {
-          light.z_buffer[light.get_index(x, y)] = point_transform_pos_w;
-        }
-      }
-    }
-  }
-}
-
-void Triangle_rasterization::rasterization_shadow_map_block(
-    directional_light &light, int start_row, int start_col, int block_row,
-    int block_col) {
-  if (block_row <= 0 || block_col <= 0) {
-    return;
-  }
-  int box_left = (int)std::min(
-      vertexs[0].transform_pos.x(),
-      std::min(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
-  int box_right = std::max(
-      vertexs[0].transform_pos.x(),
-      std::max(vertexs[1].transform_pos.x(), vertexs[2].transform_pos.x()));
-  int box_bottom = std::min(
-      vertexs[0].transform_pos.y(),
-      std::min(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  int box_top = std::max(
-      vertexs[0].transform_pos.y(),
-      std::max(vertexs[1].transform_pos.y(), vertexs[2].transform_pos.y()));
-  box_top = std::clamp(box_top, start_row, start_row + block_row - 1);
-  box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
-  box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
-  box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
-  auto projection_to_view_depth = [&light](float depth) -> float {
-    return 0.5f *
-           (depth * (light.zNear - light.zFar) + (light.zNear + light.zFar));
-  };
-  for (int y = box_bottom; y <= box_top; ++y) {
-    for (int x = box_left; x <= box_right; ++x) {
-      auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
-          vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
-          vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
-      if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
-        float point_transform_pos_w = alpha * vertexs[0].transform_pos.z() +
-                                      beta * vertexs[1].transform_pos.z() +
-                                      gamma * vertexs[2].transform_pos.z();
-        point_transform_pos_w = projection_to_view_depth(point_transform_pos_w);
-        // 为了方便PCSS计算，shadow map中存的是视图空间的深度而不是NDC空间的
-        // 而且NDC空间不线性导致bias很难调
-        if (point_transform_pos_w > light.z_buffer[light.get_index(x, y)]) {
-          light.z_buffer[light.get_index(x, y)] = point_transform_pos_w;
         }
       }
     }

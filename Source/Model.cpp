@@ -98,31 +98,6 @@ void Model::rasterization_block(Scene &scene, const Model &model, int start_row,
                             block_col);
   }
 }
-void Model::rasterization_shadow_map_block(spot_light &light, int start_row,
-                                           int start_col, int block_row,
-                                           int block_col) {
-  for (auto &&obj : sub_models) {
-    obj->rasterization_shadow_map_block(light, start_row, start_col, block_row,
-                                        block_col);
-  }
-  for (auto &&obj : clip_triangles) {
-    obj.rasterization_shadow_map_block(light, start_row, start_col, block_row,
-                                       block_col);
-  }
-}
-
-void Model::rasterization_shadow_map_block(directional_light &light,
-                                           int start_row, int start_col,
-                                           int block_row, int block_col) {
-  for (auto &&obj : sub_models) {
-    obj->rasterization_shadow_map_block(light, start_row, start_col, block_row,
-                                        block_col);
-  }
-  for (auto &&obj : clip_triangles) {
-    obj.rasterization_shadow_map_block(light, start_row, start_col, block_row,
-                                       block_col);
-  }
-}
 
 void Model::to_NDC(int width, int height) {
   for (auto &&obj : sub_models) {
