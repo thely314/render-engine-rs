@@ -102,8 +102,8 @@ void spot_light::look_at(const Scene &scene) {
   for (auto obj : scene.objects) {
     obj->to_NDC(zbuffer_width, zbuffer_height);
   }
-  int thread_num = std::min(zbuffer_width, maximum_thread_num);
-  int thread_render_row_num = ceil(zbuffer_width * 1.0 / maximum_thread_num);
+  int thread_num = std::min(zbuffer_height, maximum_thread_num);
+  int thread_render_row_num = ceil(zbuffer_height * 1.0 / maximum_thread_num);
   std::vector<std::thread> threads;
   int zbuffer_width = this->zbuffer_width;
   int zbuffer_height = this->zbuffer_height;
