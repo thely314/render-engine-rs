@@ -35,6 +35,8 @@ public:
   void start_render();
   void add_model(const std::shared_ptr<Model> &model);
   void add_light(const std::shared_ptr<light> &light);
+  void delete_model(const std::shared_ptr<Model> &model);
+  void delete_light(const std::shared_ptr<light> &light);
   void save_to_file(std::string filename);
   int get_index(int x, int y) const;
   int get_penumbra_mask_index(int x, int y) const;

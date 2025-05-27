@@ -93,12 +93,6 @@ void directional_light::look_at(const Scene &scene) {
   }
   z_buffer.resize(zbuffer_width * zbuffer_height, -INFINITY);
   std::fill(z_buffer.begin(), z_buffer.end(), -INFINITY);
-  if (enable_penumbra_mask) {
-    penumbra_mask_width = ceilf(0.25f * scene.width);
-    penumbra_mask_height = ceilf(0.25f * scene.height);
-    penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height);
-    std::fill(penumbra_mask.begin(), penumbra_mask.end(), 0.0f);
-  }
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(pos, light_dir), projection;
   projection << 2.0f / view_width, 0.0f, 0.0f, 0.0f, 0.0f, 2.0f / view_height,
@@ -379,11 +373,14 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
     return;
   }
   std::vector<std::thread> threads;
-  int penumbra_width = ceilf(scene.width * 0.25f);
-  int penumbra_height = ceilf(scene.height * 0.25f);
-  int penumbra_mask_thread_num = std::min(penumbra_height, maximum_thread_num);
+  penumbra_mask_width = ceilf(0.25f * scene.width);
+  penumbra_mask_height = ceilf(0.25f * scene.height);
+  penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height);
+  std::fill(penumbra_mask.begin(), penumbra_mask.end(), 0.0f);
+  int penumbra_mask_thread_num =
+      std::min(penumbra_mask_height, maximum_thread_num);
   int penumbra_mask_thread_row_num =
-      ceilf(penumbra_height * 1.0f / penumbra_mask_thread_num);
+      ceilf(penumbra_mask_height * 1.0f / penumbra_mask_thread_num);
   auto penumbra_mask_lambda = [](directional_light &light, const Scene &scene,
                                  int start_row, int block_row) {
     light.generate_penumbra_mask_block(scene, start_row, 0, block_row,
@@ -394,11 +391,11 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
                          penumbra_mask_thread_row_num * i,
                          penumbra_mask_thread_row_num);
   }
-  threads.emplace_back(penumbra_mask_lambda, std::ref(*this), std::ref(scene),
-                       penumbra_mask_thread_row_num *
-                           (penumbra_mask_thread_num - 1),
-                       penumbra_height - penumbra_mask_thread_row_num *
-                                             (penumbra_mask_thread_num - 1));
+  threads.emplace_back(
+      penumbra_mask_lambda, std::ref(*this), std::ref(scene),
+      penumbra_mask_thread_row_num * (penumbra_mask_thread_num - 1),
+      penumbra_mask_height -
+          penumbra_mask_thread_row_num * (penumbra_mask_thread_num - 1));
   for (auto &&thread : threads) {
     thread.join();
   }

@@ -103,6 +103,14 @@ void Scene::add_light(const std::shared_ptr<light> &light) {
   lights.push_back(light);
 }
 
+void Scene::delete_model(const std::shared_ptr<Model> &model) {
+  objects.erase(std::remove(objects.begin(), objects.end(), model),
+                objects.end());
+}
+void Scene::delete_light(const std::shared_ptr<light> &light) {
+  lights.erase(std::remove(lights.begin(), lights.end(), light), lights.end());
+}
+
 void Scene::save_to_file(std::string filename) {
   std::vector<unsigned char> data(width * height * 3);
   for (int y = 0; y != height; ++y) {

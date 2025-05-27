@@ -89,14 +89,14 @@ int main() {
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-100.0f);
-  // auto l1 = std::make_shared<spot_light>();
-  // l1->set_pos({10, 10, 10});
-  // l1->set_intensity({250, 250, 250});
-  // l1->set_aspect_ratio(1.0f);
-  // l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  // l1->set_pcf_sample_accelerate_status(false);
-  // l1->set_pcss_sample_accelerate_status(false);
-  // l1->set_penumbra_mask_status(true);
+  auto l1 = std::make_shared<spot_light>();
+  l1->set_pos({10, 10, 10});
+  l1->set_intensity({250, 250, 250});
+  l1->set_aspect_ratio(1.0f);
+  l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
+  l1->set_pcf_sample_accelerate_status(false);
+  l1->set_pcss_sample_accelerate_status(false);
+  l1->set_penumbra_mask_status(true);
 
   auto l2 = std::make_shared<directional_light>();
   l2->set_pos({10, 10, 10});
@@ -104,16 +104,17 @@ int main() {
   l2->set_light_dir((model->get_pos() - l2->get_pos()).normalized());
   l2->set_pcf_sample_accelerate_status(false);
   l2->set_pcss_sample_accelerate_status(false);
-  l2->set_penumbra_mask_status(false);
-  // my_scene.add_light(l1);
-  my_scene.add_light(l2);
+  l2->set_penumbra_mask_status(true);
+  my_scene.add_light(l1);
+  // my_scene.delete_model(floor);
+  // my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
   // model->modeling(  get_modeling_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  for (int i = 0; i != 36; ++i) {
-    my_scene.start_render();
-    my_scene.save_to_file(std::format("output{}.png", i + 1));
-    model->modeling(get_modeling_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  }
+  // for (int i = 0; i != 36; ++i) {
+  //   my_scene.start_render();
+  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
+  //   model->modeling(get_modeling_matrix({0, 1, 0}, 10, {0, 0, 0}));
+  // }
 }
