@@ -1,5 +1,6 @@
 use nalgebra::{clamp, max, min};
 
+use crate::rasterization;
 use crate::util::math::*;
 
 use super::model::*;
@@ -83,7 +84,7 @@ impl Vertex {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Triangle {
     pub verteies: [Vertex; 3],
 }
@@ -120,18 +121,18 @@ impl Triangle {
     ) {
         let mut mv_pos: [Vector3f; 3] = [Vector3f::default(); 3];
         for i in 0..3 {
-            mv_pos[i] = (mv * (self.verteies[i].pos.to_homogeneous())).xyz();
+            mv_pos[i] = (mv * (homogeneous(self.verteies[i].pos))).xyz();
         }
         let mv_normal = (mv_pos[1] - mv_pos[0]).cross(&(mv_pos[2] - mv_pos[1]));
         for i in 0..3 {
-            if mv_normal.dot(&-mv_pos[i]) < -EPSILON {
+            if mv_normal.dot(&mv_pos[i]) > EPSILON {
                 return;
             }
         }
         let mut clip_triangles = vec![TriangleRasterization::from_triangle(self)];
         for i in 0..3 {
             clip_triangles[0].verteies[i].transform_pos =
-                mvp * clip_triangles[0].verteies[i].pos.to_homogeneous();
+                mvp * homogeneous(clip_triangles[0].verteies[i].pos);
         }
         TriangleRasterization::clip_triangles::<2, true>(&mut clip_triangles);
         TriangleRasterization::clip_triangles::<2, false>(&mut clip_triangles);
@@ -139,18 +140,22 @@ impl Triangle {
         TriangleRasterization::clip_triangles::<1, false>(&mut clip_triangles);
         TriangleRasterization::clip_triangles::<0, true>(&mut clip_triangles);
         TriangleRasterization::clip_triangles::<0, false>(&mut clip_triangles);
+        // println!("Start");
         for iter in clip_triangles.into_iter() {
+            // println!("{:?}\n", iter);
             output.push(iter);
         }
+        // println!("End\n");
     }
     pub fn modeling(&mut self, matrix: &Matrix4f) {
         for i in 0..3 {
-            self.verteies[i].pos = (matrix * self.verteies[i].pos.to_homogeneous()).xyz();
+            self.verteies[i].pos = (matrix * homogeneous(self.verteies[i].pos)).xyz();
             self.verteies[i].normal = matrix.fixed_view::<3, 3>(0, 0) * self.verteies[i].normal;
         }
     }
 }
 
+#[derive(Debug)]
 pub struct VertexRasterization {
     pub pos: Vector3f,
     pub transform_pos: Vector4f,
@@ -170,7 +175,6 @@ impl Default for VertexRasterization {
         }
     }
 }
-
 impl Clone for VertexRasterization {
     fn clone(&self) -> Self {
         VertexRasterization::new(
@@ -250,7 +254,7 @@ impl VertexRasterization {
         )
     }
 }
-
+#[derive(Debug)]
 pub struct TriangleRasterization {
     pub verteies: [VertexRasterization; 3],
 }
@@ -283,15 +287,15 @@ impl TriangleRasterization {
         TriangleRasterization::new(
             &VertexRasterization::from_vertex(
                 &triangle.verteies[0],
-                triangle.verteies[0].pos.to_homogeneous(),
+                homogeneous(triangle.verteies[0].pos),
             ),
             &VertexRasterization::from_vertex(
                 &triangle.verteies[1],
-                triangle.verteies[1].pos.to_homogeneous(),
+                homogeneous(triangle.verteies[1].pos),
             ),
             &VertexRasterization::from_vertex(
                 &triangle.verteies[2],
-                triangle.verteies[2].pos.to_homogeneous(),
+                homogeneous(triangle.verteies[2].pos),
             ),
         )
     }
@@ -322,6 +326,7 @@ impl TriangleRasterization {
         box_right = clamp(box_right, start_col, end_col);
         box_bottom = clamp(box_bottom, start_row, end_row);
         box_top = clamp(box_top, start_row, end_row);
+        println!("{} {} {} {}", box_left, box_right, box_bottom, box_top);
         let edge1 = self.verteies[1].pos - self.verteies[0].pos;
         let edge2 = self.verteies[2].pos - self.verteies[1].pos;
         let uv_edge1 = self.verteies[1].texture_coords - self.verteies[0].texture_coords;
@@ -437,15 +442,15 @@ impl TriangleRasterization {
             let mut vertex_unavailable = [false; 3];
             for j in 0..3 {
                 if IS_LESS {
-                    if (output[i].verteies[j].transform_pos[N]
-                        < output[i].verteies[j].transform_pos.w)
+                    if output[i].verteies[j].transform_pos[N]
+                        < output[i].verteies[j].transform_pos.w
                     {
                         vertex_out_cnt += 1;
                         vertex_unavailable[j] = true;
                     }
                 } else {
-                    if (output[i].verteies[j].transform_pos[N]
-                        > -output[i].verteies[j].transform_pos.w)
+                    if output[i].verteies[j].transform_pos[N]
+                        > -output[i].verteies[j].transform_pos.w
                     {
                         vertex_out_cnt += 1;
                         vertex_unavailable[j] = true;
@@ -467,8 +472,8 @@ impl TriangleRasterization {
                         idx[2] = 0;
                     } else if vertex_unavailable[1] {
                         idx[0] = 2;
-                        idx[1] = 1;
-                        idx[2] = 0;
+                        idx[1] = 0;
+                        idx[2] = 1;
                     } else {
                         idx[0] = 0;
                         idx[1] = 1;
@@ -496,7 +501,7 @@ impl TriangleRasterization {
                     }
                     let d = (1.0 - t_d) * a + &(t_d * c);
                     let e = (1.0 - t_e) * b + &(t_e * c);
-                    output.push(TriangleRasterization::new(a, &d, &e));
+                    output.push(TriangleRasterization::new(b, &e, &d));
                     output[i].verteies[idx[2]] = d;
                     if remain_size != i {
                         output[remain_size] = output[i];
@@ -515,8 +520,8 @@ impl TriangleRasterization {
                         idx[2] = 0;
                     } else {
                         idx[0] = 2;
-                        idx[1] = 1;
-                        idx[2] = 0;
+                        idx[1] = 0;
+                        idx[2] = 1;
                     }
                     let a = &output[i].verteies[idx[0]];
                     let b = &output[i].verteies[idx[1]];

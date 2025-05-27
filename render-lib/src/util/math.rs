@@ -9,6 +9,10 @@ pub type Vector4f = nalgebra::Vector4<f32>;
 pub type Matrix3f = nalgebra::Matrix3<f32>;
 pub type Matrix4f = nalgebra::Matrix4<f32>;
 
+pub fn homogeneous(vec: Vector3f) -> Vector4f {
+    Vector4f::new(vec.x, vec.y, vec.z, 1.0)
+}
+
 pub fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Matrix4f {
     let axis = axis.normalize();
     let angle = angle * PI / 180.0;

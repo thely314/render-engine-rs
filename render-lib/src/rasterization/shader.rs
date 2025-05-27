@@ -20,7 +20,7 @@ pub unsafe fn default_texture_shader(
     for y in start_row..end_row {
         for x in start_col..end_col {
             let idx = (*scene).get_index(x, y) as usize;
-            if ((*scene).z_buffer[idx] == INFINITY) {
+            if (*scene).z_buffer[idx] == INFINITY {
                 continue;
             }
             let point = (*scene).pos_buffer[idx];
@@ -30,8 +30,14 @@ pub unsafe fn default_texture_shader(
             let ks = (*scene).specular_buffer[idx];
             let mut result_color = (*scene).glow_buffer[idx];
             let ambient_intensity = Vector3f::new(0.05, 0.05, 0.05);
+            if x == 0 && y == 512 {
+                println!(
+                    "{:?}\n{:?}\n{:?}\n{:?}\n{:?}\n{:?}\n",
+                    point, normal, ka, kd, ks, result_color
+                );
+            }
             for light in &(*scene).lights {
-                let light = light.read().unwrap();
+                let light = light.read();
                 let visiblity: f32;
                 if light.in_penumbra_mask(x, y) {
                     visiblity = light.in_shadow(point, normal, ShadowMethod::PCSS);

@@ -1,5 +1,8 @@
+use nalgebra::clamp;
+use parking_lot::RwLock;
+use parking_lot::RwLockWriteGuard;
 use std::f32::INFINITY;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use std::thread;
 
 use nalgebra::{max, min};
@@ -7,12 +10,15 @@ use nalgebra::{max, min};
 use crate::rasterization::light::*;
 use crate::rasterization::model::*;
 use crate::util::math::*;
-const SCENE_MAXIMUM_THREAD_NUM: i32 = 8;
+const SCENE_MAXIMUM_THREAD_NUM: i32 = 1;
 #[derive(Copy, Clone)]
 struct ScenePtr(*mut Scene);
 unsafe impl Send for ScenePtr {}
 impl ScenePtr {
     unsafe fn get_mut(self) -> *mut Scene {
+        self.0
+    }
+    unsafe fn get(self) -> *const Scene {
         self.0
     }
 }
@@ -179,32 +185,35 @@ impl Scene {
         self.specular_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
         self.glow_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
         self.z_buffer.fill(INFINITY);
-        let model = Matrix4f::identity();
+        let modeling = Matrix4f::identity();
         let view = get_view_matrix(self.eye_pos, self.view_dir);
         let projection =
             get_projection_matrix(self.fov, self.aspect_ratio, self.z_near, self.z_far);
-        let mvp = projection * view * model;
-        let mv = view * model;
-        {
-            let mut locked_lights = vec![];
-            for light in &self.lights {
-                locked_lights.push(light.write().unwrap());
-            }
-            for light in &mut locked_lights {
-                light.look_at(&self);
-            }
-            let mut locked_models = vec![];
-            for model in &self.models {
-                locked_models.push(model.write().unwrap());
-            }
-            for model in &mut locked_models {
-                model.clip(&mvp, &mv);
-                model.to_NDC(self.width as u32, self.height as u32);
-            }
+        let mvp = projection * view * modeling;
+        let mv = view * modeling;
+        let mut locked_lights = vec![];
+        for light in &self.lights {
+            locked_lights.push(light.write());
         }
+        let mut locked_models = vec![];
+        for model in &self.models {
+            locked_models.push(model.write());
+        }
+        for light in &mut locked_lights {
+            light.look_at(&mut locked_models);
+        }
+        for model in &mut locked_models {
+            model.clip(&mvp, &mv);
+            model.to_NDC(self.width as u32, self.height as u32);
+        }
+        let locked_models_read: Vec<_> = locked_models
+            .into_iter()
+            .map(RwLockWriteGuard::downgrade)
+            .collect();
+        //将locked_models中的写锁原子转换为读锁
         let thread_num = std::cmp::min(self.height, SCENE_MAXIMUM_THREAD_NUM);
         let rows_per_thread = (self.height as f32 / thread_num as f32).ceil() as i32;
-        let scene_ptr = ScenePtr(self as *mut Scene);
+        let scene_ptr = ScenePtr(self as *const Scene as *mut Scene);
         let self_width = self.width;
         let self_height = self.height;
         let mut handles = Vec::new();
@@ -212,7 +221,7 @@ impl Scene {
             let handle = thread::spawn(move || unsafe {
                 let scene: *mut Scene = scene_ptr.get_mut();
                 for model in &(*scene).models {
-                    let model = model.read().unwrap();
+                    let model = model.read();
                     model.rasterization(
                         scene,
                         tid * rows_per_thread,
@@ -227,7 +236,7 @@ impl Scene {
         let handle = thread::spawn(move || unsafe {
             let scene: *mut Scene = scene_ptr.get_mut();
             for model in &(*scene).models {
-                let model = model.read().unwrap();
+                let model = model.read();
                 model.rasterization(
                     scene,
                     (thread_num - 1) * rows_per_thread,
@@ -242,30 +251,55 @@ impl Scene {
             handle.join().unwrap();
         }
         let box_radius = (4.0 * max(self.width, self.height) as f32 / 1024.0).round() as i32;
-        let penumbra_width = (self.width as f32 * 0.25).ceil() as i32;
-        let penumbra_height = (self.height as f32 * 0.25).ceil() as i32;
-        let penumbra_mask_thread_num = min(penumbra_height, SCENE_MAXIMUM_THREAD_NUM);
-        let penumbra_rows_per_thread =
-            (penumbra_height as f32 / penumbra_mask_thread_num as f32).ceil() as i32;
-        //   auto penumbra_mask_lambda = [](Scene &scene, int start_row, int block_row) {
-        //     for (auto &&light : scene.lights) {
-        //       light->generate_penumbra_mask_block(scene, start_row, 0, block_row,
-        //                                           ceilf(scene.width * 0.25f));
-        //     }
-        //   };
-        //   for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
-        //     threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
-        //                          penumbra_mask_thread_row_num * i,
-        //                          penumbra_mask_thread_row_num);
-        //   }
-        //   threads.emplace_back(penumbra_mask_lambda, std::ref(*this),
-        //                        penumbra_mask_thread_row_num * (thread_num - 1),
-        //                        penumbra_height - penumbra_mask_thread_row_num *
-        //                                              (penumbra_mask_thread_num - 1));
-        //   for (auto &&thread : threads) {
-        //     thread.join();
-        //   }
-        //   threads.clear();
+        for light in &mut locked_lights {
+            light.generate_penumbra_mask(unsafe { scene_ptr.get() });
+            light.box_blur_penumbra_mask(box_radius);
+        }
+        let locked_lights_read: Vec<_> = locked_lights
+            .into_iter()
+            .map(RwLockWriteGuard::downgrade)
+            .collect();
+        let mut handles = Vec::new();
+        for tid in 0..thread_num - 1 {
+            let handle = thread::spawn(move || unsafe {
+                let scene: *mut Scene = scene_ptr.get_mut();
+                ((*scene).shader)(scene, tid * rows_per_thread, 0, rows_per_thread, self_width)
+            });
+            handles.push(handle);
+        }
+        let handle = thread::spawn(move || unsafe {
+            let scene: *mut Scene = scene_ptr.get_mut();
+            ((*scene).shader)(
+                scene,
+                (thread_num - 1) * rows_per_thread,
+                0,
+                self_height - (thread_num - 1) * rows_per_thread,
+                self_width,
+            )
+        });
+        handles.push(handle);
+        for handle in handles {
+            handle.join().unwrap();
+        }
     }
-    //   void save_to_file(std::string filename);
+    pub fn save_to_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            self.frame_buffer.len(),
+            self.width as usize * self.height as usize
+        );
+        let mut img_buf: Vec<u8> = Vec::with_capacity((self.width * self.height * 3) as usize);
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let idx = (self.width * (self.height - y - 1) + x) as usize;
+                for i in 0..3 {
+                    img_buf
+                        .push((clamp(self.frame_buffer[idx][i], 0.0, 1.0) * 255.0).round() as u8);
+                }
+            }
+        }
+        let img = image::RgbImage::from_raw(self.width as u32, self.height as u32, img_buf)
+            .ok_or("Failed to create image from buffer")?;
+        img.save(path)?;
+        Ok(())
+    }
 }

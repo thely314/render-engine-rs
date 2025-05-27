@@ -1,3 +1,5 @@
 target/
 .vscode/
 /render-lib/models/
+/render-lib/err.log
+/render-lib/output*

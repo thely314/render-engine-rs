@@ -1,3 +1,7 @@
+use assimp::Color4D;
+use assimp::Vector3D;
+use parking_lot::RwLock;
+
 use crate::rasterization::scene::*;
 use crate::rasterization::texture::*;
 use crate::rasterization::triangle::*;
@@ -6,7 +10,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 #[derive(Clone)]
 pub struct Model {
-    sub_models: Vec<Arc<Mutex<Model>>>,
+    sub_models: Vec<Arc<RwLock<Model>>>,
     triangles: Vec<Triangle>,
     clip_triangles: Vec<TriangleRasterization>,
     pos: Vector3f,
@@ -40,19 +44,111 @@ impl Default for Model {
 
 impl Model {
     pub const TEXTURE_NUM: usize = 4;
+    pub fn from_file(path: &str, default_color: Color4D) -> Self {
+        let mut importer = assimp::Importer::new();
+        importer.triangulate(true);
+        importer.generate_normals(|config: &mut assimp::import::structs::GenerateNormals| {
+            // 启用法线生成 (通常在此闭包中默认为启用，但显式设置更清晰)
+            config.enable = true;
+            // 启用法线平滑
+            config.smooth = true;
+            // 设置最大平滑角度。Assimp 的默认值通常在 60-88 度之间。
+            // 66.0 是一个常见选择。
+            config.max_smoothing_angle = 66.0; // 单位是度
+                                               // 根据 crate 文档，GenerateNormals 的其他字段（如果有的话）将使用其默认值。
+                                               // 例如，通常不强制覆盖已存在的法线，除非有特定字段并被设置为 true。
+        });
+        let mut output = Self::default();
+        match importer.read_file(path) {
+            Ok(scene) => {
+                println!("成功加载模型: {}", path);
+                for mesh in scene.mesh_iter() {
+                    output.process_mesh(&mesh, default_color);
+                }
+            }
+            Err(err) => {
+                eprintln!("加载模型失败: {}", err);
+            }
+        }
+        output
+    }
+    pub fn load(&mut self, path: &str, default_color: Color4D) {
+        let mut importer = assimp::Importer::new();
+        importer.triangulate(true);
+        importer.generate_normals(|config: &mut assimp::import::structs::GenerateNormals| {
+            config.enable = true;
+            config.smooth = true;
+            config.max_smoothing_angle = 66.0;
+        });
+        match importer.read_file(path) {
+            Ok(scene) => {
+                println!("成功加载模型: {}", path);
+                self.triangles.clear();
+                self.clip_triangles.clear();
+                self.pos = Vector3f::new(0.0, 0.0, 0.0);
+                self.scale = 1.0;
+                for mesh in scene.mesh_iter() {
+                    self.process_mesh(&mesh, default_color);
+                }
+            }
+            Err(err) => {
+                eprintln!("加载模型失败: {}", err);
+            }
+        }
+    }
+
+    fn process_mesh(&mut self, mesh: &assimp::Mesh, default_color: Color4D) {
+        let mut vertices = Vec::new();
+
+        for i in 0..mesh.num_vertices() {
+            let position = mesh.get_vertex(i).unwrap_or(Vector3D::new(0.0, 0.0, 0.0));
+            let normal = mesh.get_normal(i).unwrap_or(Vector3D::new(0.0, 0.0, 0.0));
+            let tex_coords = if mesh.has_texture_coords(0) {
+                mesh.get_texture_coord(0, i)
+                    .unwrap_or(Vector3D::new(0.0, 0.0, 0.0))
+            } else {
+                Vector3D::new(0.0, 0.0, 0.0)
+            };
+            let color = if mesh.has_vertex_colors(0) {
+                mesh.get_vertex_color(0, i).unwrap_or(default_color)
+            } else {
+                default_color
+            };
+            let vertex = Vertex {
+                pos: Vector3f::new(position.x, position.y, position.z),
+                normal: Vector3f::new(normal.x, normal.y, normal.z),
+                texture_coords: Vector2f::new(tex_coords.x, tex_coords.y),
+                color: Vector3f::new(color.r, color.g, color.b),
+            };
+            vertices.push(vertex);
+        }
+
+        for face in mesh.face_iter() {
+            if face.num_indices == 3 {
+                let indices =
+                    unsafe { std::slice::from_raw_parts(face.indices, face.num_indices as usize) };
+                self.triangles.push(Triangle::new(
+                    &vertices[indices[0] as usize],
+                    &vertices[indices[1] as usize],
+                    &vertices[indices[2] as usize],
+                ));
+            }
+        }
+    }
+
     pub fn set_pos(&mut self, pos: Vector3f) {
         let modeling_matrix = Matrix4f::from_row_slice(&[
-            0.0,
+            1.0,
             0.0,
             0.0,
             pos.x - self.pos.x,
             0.0,
-            0.0,
+            1.0,
             0.0,
             pos.y - self.pos.y,
             0.0,
             0.0,
-            0.0,
+            1.0,
             pos.z - self.pos.z,
             0.0,
             0.0,
@@ -93,8 +189,7 @@ impl Model {
     ) {
         for sub_model in &self.sub_models {
             sub_model
-                .lock()
-                .unwrap()
+                .write()
                 .rasterization(scene, start_row, start_col, block_row, block_col);
         }
         for triangle in &self.clip_triangles {
@@ -103,7 +198,7 @@ impl Model {
     }
     pub fn modeling(&mut self, modeling_matrix: &Matrix4f) {
         for sub_model in &self.sub_models {
-            sub_model.lock().unwrap().modeling(modeling_matrix);
+            sub_model.write().modeling(modeling_matrix);
         }
         for triangle in &mut self.triangles {
             triangle.modeling(modeling_matrix);
@@ -111,15 +206,16 @@ impl Model {
     }
     pub fn to_NDC(&mut self, width: u32, height: u32) {
         for sub_model in &self.sub_models {
-            sub_model.lock().unwrap().to_NDC(width, height);
+            sub_model.write().to_NDC(width, height);
         }
         for triangle in &mut self.clip_triangles {
             triangle.to_NDC(width, height);
         }
     }
     pub fn clip(&mut self, mvp: &Matrix4f, mv: &Matrix4f) {
+        self.clip_triangles.clear();
         for sub_model in &self.sub_models {
-            sub_model.lock().unwrap().clip(mvp, mv);
+            sub_model.write().clip(mvp, mv);
         }
         for triangle in &mut self.triangles {
             triangle.clip(mvp, mv, &mut self.clip_triangles);

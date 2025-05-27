@@ -9,6 +9,7 @@ edition = "2021"
 nalgebra = "0.33.2"
 assimp = "0.3"
 image = "0.25"
+parking_lot = "0.12.3"
 
 [build-dependencies]
 vcpkg = "0.2"
