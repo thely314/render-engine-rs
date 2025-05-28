@@ -37,6 +37,7 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
           shadow_result =
               scene.lights[i]->in_shadow(pos, normal, light::DIRECT);
         }
+        // break;
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
         Eigen::Vector3f light_dir = scene.lights[i]->get_pos() - pos;
         float light_distance_square = light_dir.dot(light_dir);
@@ -81,6 +82,7 @@ int main() {
   model->set_scale(2.5f);
   // model->set_pos({0, -2.45f, 0});
   auto floor = std::make_shared<Model>("../models/floor.obj");
+  // floor->set_scale(0.5f);
   floor->set_pos({0.0f, -2.45f, 0.0f});
   Scene my_scene = Scene(1024, 1024);
   my_scene.add_model(model);
@@ -94,8 +96,8 @@ int main() {
   l1->set_intensity({250, 250, 250});
   l1->set_aspect_ratio(1.0f);
   l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  l1->set_pcf_sample_accelerate_status(false);
-  l1->set_pcss_sample_accelerate_status(false);
+  l1->set_pcf_sample_accelerate_status(true);
+  l1->set_pcss_sample_accelerate_status(true);
   l1->set_penumbra_mask_status(true);
 
   auto l2 = std::make_shared<directional_light>();
@@ -105,10 +107,11 @@ int main() {
   l2->set_pcf_sample_accelerate_status(false);
   l2->set_pcss_sample_accelerate_status(false);
   l2->set_penumbra_mask_status(true);
-  my_scene.add_light(l1);
+  my_scene.add_light(l2);
   // my_scene.delete_model(floor);
   // my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
+
   // model->modeling(  get_modeling_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");

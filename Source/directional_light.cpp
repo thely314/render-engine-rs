@@ -111,7 +111,7 @@ void directional_light::look_at(const Scene &scene) {
     obj->to_NDC(zbuffer_width, zbuffer_height);
   }
   int thread_num = std::min(zbuffer_height, maximum_thread_num);
-  int thread_render_row_num = ceil(zbuffer_height * 1.0 / maximum_thread_num);
+  int thread_render_row_num = ceil(zbuffer_height * 1.0 / thread_num);
   std::vector<std::thread> threads;
   int zbuffer_width = this->zbuffer_width;
   int zbuffer_height = this->zbuffer_height;
@@ -166,8 +166,7 @@ float directional_light::in_shadow(const Eigen::Vector3f &point_pos,
 
 bool directional_light::in_penumbra_mask(int x, int y) {
   if (enable_shadow && enable_penumbra_mask) {
-    return penumbra_mask[get_penumbra_mask_index(x * 0.25f, y * 0.25f)] >
-           EPSILON;
+    return penumbra_mask[get_penumbra_mask_index(x / 4, y / 4)] > EPSILON;
   }
   return true;
 }
@@ -223,8 +222,9 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
       Eigen::Matrix<float, 2, 2>::Identity();
   transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
   transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  int pcf_num = 0, unshadow_num = 0;
-  int center_x = transform_pos.x(), center_y = transform_pos.y();
+  int unshadow_num = 0;
+  int center_x = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1);
+  int center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
   float bias = directional_light_bias_scale *
                std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
@@ -235,13 +235,13 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
         int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
-        ++pcf_num;
         if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
             z_buffer[get_index(idx_x, idx_y)]) {
           ++unshadow_num;
         }
       }
     }
+    return unshadow_num * 1.0f / directional_light_sample_num;
   } else {
     float sample_num_inverse = 1.0f / directional_light_sample_num;
     for (int i = 0; i < directional_light_sample_num; ++i) {
@@ -251,14 +251,13 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
           y = roundf(pcf_radius * sample_dir.y());
       int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
       int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
-      ++pcf_num;
       if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
           z_buffer[get_index(idx_x, idx_y)]) {
         ++unshadow_num;
       }
     }
+    return unshadow_num * 1.0f / ((2 * pcf_radius + 1) * (2 * pcf_radius + 1));
   }
-  return unshadow_num * 1.0f / pcf_num;
 }
 
 float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
@@ -281,7 +280,8 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
       Eigen::Matrix<float, 2, 2>::Identity();
   transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
   transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  int center_x = transform_pos.x(), center_y = transform_pos.y();
+  int center_x = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1);
+  int center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
   float bias = directional_light_bias_scale *
                std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
@@ -337,19 +337,19 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   // 但是penumbra_mask会砍半影面积，导致在给定距离内无法过渡到无影状态
   // 看上去就像影子在边缘很突兀的消失了，因为在边缘阴影还没弱到足够的程度
   // 解决方法是砍pcf_radius让阴影过渡的更快，但是这会导致阴影比真实的要硬
-  int pcf_num = 0, unshadow_num = 0;
+  int unshadow_num = 0;
   if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
         int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
-        ++pcf_num;
         if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
             z_buffer[get_index(idx_x, idx_y)]) {
           ++unshadow_num;
         }
       }
     }
+    return unshadow_num * 1.0f / ((2 * pcf_radius + 1) * (2 * pcf_radius + 1));
   } else {
     float sample_num_inverse = 1.0f / directional_light_sample_num;
     for (int i = 0; i < directional_light_sample_num; ++i) {
@@ -359,14 +359,13 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
           y = roundf(pcf_radius * sample_dir.y());
       int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
       int idx_y = std::clamp(center_y + y, 0, zbuffer_height - 1);
-      ++pcf_num;
       if (transform_pos.z() + (std::max(abs(x), abs(y)) + 1) * bias >
           z_buffer[get_index(idx_x, idx_y)]) {
         ++unshadow_num;
       }
     }
+    return unshadow_num * 1.0f / directional_light_sample_num;
   }
-  return unshadow_num * 1.0f / pcf_num;
 }
 void directional_light::generate_penumbra_mask(const Scene &scene) {
   if (!enable_shadow || !enable_penumbra_mask) {
@@ -407,15 +406,13 @@ void directional_light::generate_penumbra_mask_block(const Scene &scene,
                                                      int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
-      x = std::clamp(x, 0, penumbra_mask_width - 1);
-      y = std::clamp(y, 0, penumbra_mask_height - 1);
       int start_x = 4 * x, start_y = 4 * y;
       int pcf_num = 0, unshadow_num = 0;
       for (int v = start_y; v < start_y + 4; ++v) {
         for (int u = start_x; u < start_x + 4; ++u) {
-          u = std::clamp(u, 0, scene.width - 1);
-          v = std::clamp(v, 0, scene.height - 1);
-          int idx = scene.get_index(u, v);
+          float clamp_u = std::clamp(u, 0, scene.width - 1);
+          float clamp_v = std::clamp(v, 0, scene.height - 1);
+          int idx = scene.get_index(clamp_u, clamp_v);
           if (scene.z_buffer[idx] < INFINITY) {
             ++pcf_num;
             if (in_shadow_direct(scene.pos_buffer[idx],
@@ -426,7 +423,7 @@ void directional_light::generate_penumbra_mask_block(const Scene &scene,
         }
       }
       int idx = get_penumbra_mask_index(x, y);
-      if (pcf_num == 0 || unshadow_num == 0 || pcf_num == unshadow_num) {
+      if (unshadow_num == 0 || pcf_num == unshadow_num) {
         penumbra_mask[idx] = 0.0f;
       } else {
         penumbra_mask[idx] = 1.0f;

@@ -81,7 +81,9 @@ void Model::modeling(const Eigen::Matrix<float, 4, 4> &matrix) {
 }
 
 void Model::add(const std::shared_ptr<Model> &obj) {
-  sub_models.push_back(obj);
+  if (obj.get() != this) {
+    sub_models.push_back(obj);
+  }
 }
 void Model::add(const Triangle &obj) { triangles.push_back(obj); }
 
