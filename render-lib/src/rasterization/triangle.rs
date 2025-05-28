@@ -308,13 +308,9 @@ impl TriangleRasterization {
         block_row: i32,
         block_col: i32,
     ) {
-        let end_row = clamp(start_row + block_row - 1, 0, (*scene).height - 1);
-        let end_col = clamp(start_col + block_col - 1, 0, (*scene).width - 1);
-        let start_row = clamp(start_row, 0, (*scene).height - 1);
-        let start_col = clamp(start_col, 0, (*scene).width - 1);
-        let mut box_left: i32 = (*scene).width;
+        let mut box_left: i32 = 0x7FFFFFFF;
         let mut box_right: i32 = 0;
-        let mut box_bottom: i32 = (*scene).height;
+        let mut box_bottom: i32 = 0x7FFFFFFF;
         let mut box_top: i32 = 0;
         for i in 0..3 {
             box_left = min(self.verteies[i].transform_pos.x as i32, box_left);
@@ -322,11 +318,10 @@ impl TriangleRasterization {
             box_bottom = min(self.verteies[i].transform_pos.y as i32, box_bottom);
             box_top = max(self.verteies[i].transform_pos.y as i32, box_top);
         }
-        box_left = clamp(box_left, start_col, end_col);
-        box_right = clamp(box_right, start_col, end_col);
-        box_bottom = clamp(box_bottom, start_row, end_row);
-        box_top = clamp(box_top, start_row, end_row);
-        println!("{} {} {} {}", box_left, box_right, box_bottom, box_top);
+        box_left = clamp(box_left, start_col, start_col + block_col - 1);
+        box_right = clamp(box_right, start_col, start_col + block_col - 1);
+        box_bottom = clamp(box_bottom, start_row, start_row + block_row - 1);
+        box_top = clamp(box_top, start_row, start_row + block_row - 1);
         let edge1 = self.verteies[1].pos - self.verteies[0].pos;
         let edge2 = self.verteies[2].pos - self.verteies[1].pos;
         let uv_edge1 = self.verteies[1].texture_coords - self.verteies[0].texture_coords;
@@ -426,6 +421,65 @@ impl TriangleRasterization {
                                 glow_texture.get_rgb(point_uv.x, point_uv.y);
                         } else {
                             (*scene).glow_buffer[idx] = Vector3f::default();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    pub(in crate::rasterization) unsafe fn rasterization_shadow_map<const IS_PROJECTION: bool>(
+        &self,
+        z_buffer: *mut Vec<f32>,
+        start_row: i32,
+        start_col: i32,
+        block_row: i32,
+        block_col: i32,
+        depth_transformer: &impl Fn(f32, f32) -> f32,
+        get_index: &impl Fn(i32, i32) -> i32,
+    ) {
+        let mut box_left: i32 = 0x7FFFFFFF;
+        let mut box_right: i32 = 0;
+        let mut box_bottom: i32 = 0x7FFFFFFF;
+        let mut box_top: i32 = 0;
+        for i in 0..3 {
+            box_left = min(self.verteies[i].transform_pos.x as i32, box_left);
+            box_right = max(self.verteies[i].transform_pos.x as i32, box_right);
+            box_bottom = min(self.verteies[i].transform_pos.y as i32, box_bottom);
+            box_top = max(self.verteies[i].transform_pos.y as i32, box_top);
+        }
+        box_left = clamp(box_left, start_col, start_col + block_col - 1);
+        box_right = clamp(box_right, start_col, start_col + block_col - 1);
+        box_bottom = clamp(box_bottom, start_row, start_row + block_row - 1);
+        box_top = clamp(box_top, start_row, start_row + block_row - 1);
+        for y in box_bottom..=box_top {
+            for x in box_left..=box_right {
+                let (mut alpha, mut beta, mut gamma) = cal_bary_coord_2d(
+                    self.verteies[0].transform_pos.xy(),
+                    self.verteies[1].transform_pos.xy(),
+                    self.verteies[2].transform_pos.xy(),
+                    Vector2f::new(x as f32 + 0.5, y as f32 + 0.5),
+                );
+                if is_inside_triangle(alpha, beta, gamma) {
+                    if IS_PROJECTION {
+                        alpha /= -self.verteies[0].transform_pos.w;
+                        beta /= -self.verteies[1].transform_pos.w;
+                        gamma /= -self.verteies[2].transform_pos.w;
+                        let w_inter = 1.0 / (alpha + beta + gamma);
+                        alpha *= w_inter;
+                        beta *= w_inter;
+                        gamma *= w_inter;
+                    }
+                    let point_transform_z = alpha * self.verteies[0].transform_pos.z
+                        + beta * self.verteies[1].transform_pos.z
+                        + gamma * self.verteies[2].transform_pos.z;
+                    let point_transform_w = alpha * self.verteies[0].transform_pos.w
+                        + beta * self.verteies[1].transform_pos.w
+                        + gamma * self.verteies[2].transform_pos.w;
+                    let depth = depth_transformer(point_transform_z, point_transform_w);
+                    let idx = get_index(x, y) as usize;
+                    unsafe {
+                        if depth > (*z_buffer)[idx] {
+                            (*z_buffer)[idx] = depth;
                         }
                     }
                 }

@@ -1,6 +1,5 @@
 use assimp::Color4D;
 use assimp::Vector3D;
-use parking_lot::RwLock;
 
 use crate::rasterization::scene::*;
 use crate::rasterization::texture::*;
@@ -8,9 +7,10 @@ use crate::rasterization::triangle::*;
 use crate::util::math::*;
 use std::sync::Arc;
 use std::sync::Mutex;
+
 #[derive(Clone)]
 pub struct Model {
-    sub_models: Vec<Arc<RwLock<Model>>>,
+    sub_models: Vec<Arc<Mutex<Model>>>,
     triangles: Vec<Triangle>,
     clip_triangles: Vec<TriangleRasterization>,
     pos: Vector3f,
@@ -96,7 +96,9 @@ impl Model {
             }
         }
     }
-
+    pub fn add_sub_model(&mut self, sub_model: Arc<Mutex<Model>>) {
+        self.sub_models.push(sub_model);
+    }
     fn process_mesh(&mut self, mesh: &assimp::Mesh, default_color: Color4D) {
         let mut vertices = Vec::new();
 
@@ -189,24 +191,61 @@ impl Model {
     ) {
         for sub_model in &self.sub_models {
             sub_model
-                .write()
+                .lock()
+                .unwrap()
                 .rasterization(scene, start_row, start_col, block_row, block_col);
         }
         for triangle in &self.clip_triangles {
             triangle.rasterization(scene, &self, start_row, start_col, block_row, block_col);
         }
     }
-    pub fn modeling(&mut self, modeling_matrix: &Matrix4f) {
+    pub(in crate::rasterization) unsafe fn rasterization_shadow_map<const IS_PROJECTION: bool>(
+        &self,
+        z_buffer: *mut Vec<f32>,
+        start_row: i32,
+        start_col: i32,
+        block_row: i32,
+        block_col: i32,
+        depth_transformer: &dyn Fn(f32, f32) -> f32,
+        get_index: &dyn Fn(i32, i32) -> i32,
+    ) {
         for sub_model in &self.sub_models {
-            sub_model.write().modeling(modeling_matrix);
+            sub_model
+                .lock()
+                .unwrap()
+                .rasterization_shadow_map::<IS_PROJECTION>(
+                    z_buffer,
+                    start_row,
+                    start_col,
+                    block_row,
+                    block_col,
+                    &depth_transformer,
+                    &get_index,
+                );
+        }
+        for triangle in &self.clip_triangles {
+            triangle.rasterization_shadow_map::<IS_PROJECTION>(
+                z_buffer,
+                start_row,
+                start_col,
+                block_row,
+                block_col,
+                &depth_transformer,
+                &get_index,
+            );
+        }
+    }
+    pub fn modeling(&mut self, modeling_matrix: &Matrix4f) {
+        for sub_model in &mut self.sub_models {
+            sub_model.lock().unwrap().modeling(modeling_matrix);
         }
         for triangle in &mut self.triangles {
             triangle.modeling(modeling_matrix);
         }
     }
     pub fn to_NDC(&mut self, width: u32, height: u32) {
-        for sub_model in &self.sub_models {
-            sub_model.write().to_NDC(width, height);
+        for sub_model in &mut self.sub_models {
+            sub_model.lock().unwrap().to_NDC(width, height);
         }
         for triangle in &mut self.clip_triangles {
             triangle.to_NDC(width, height);
@@ -214,8 +253,8 @@ impl Model {
     }
     pub fn clip(&mut self, mvp: &Matrix4f, mv: &Matrix4f) {
         self.clip_triangles.clear();
-        for sub_model in &self.sub_models {
-            sub_model.write().clip(mvp, mv);
+        for sub_model in &mut self.sub_models {
+            sub_model.lock().unwrap().clip(mvp, mv);
         }
         for triangle in &mut self.triangles {
             triangle.clip(mvp, mv, &mut self.clip_triangles);

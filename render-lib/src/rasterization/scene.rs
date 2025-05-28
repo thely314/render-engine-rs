@@ -1,27 +1,17 @@
 use nalgebra::clamp;
-use parking_lot::RwLock;
-use parking_lot::RwLockWriteGuard;
 use std::f32::INFINITY;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 
 use nalgebra::{max, min};
 
 use crate::rasterization::light::*;
 use crate::rasterization::model::*;
+use crate::rasterization::unsafe_pack::*;
 use crate::util::math::*;
 const SCENE_MAXIMUM_THREAD_NUM: i32 = 1;
-#[derive(Copy, Clone)]
-struct ScenePtr(*mut Scene);
-unsafe impl Send for ScenePtr {}
-impl ScenePtr {
-    unsafe fn get_mut(self) -> *mut Scene {
-        self.0
-    }
-    unsafe fn get(self) -> *const Scene {
-        self.0
-    }
-}
+
 pub struct Scene {
     pub(in crate::rasterization) eye_pos: Vector3f,
     pub(in crate::rasterization) view_dir: Vector3f,
@@ -38,9 +28,10 @@ pub struct Scene {
     pub(in crate::rasterization) specular_buffer: Vec<Vector3f>,
     pub(in crate::rasterization) glow_buffer: Vec<Vector3f>,
     pub(in crate::rasterization) z_buffer: Vec<f32>,
-    pub(in crate::rasterization) models: Vec<Arc<RwLock<Model>>>,
-    pub(in crate::rasterization) lights: Vec<Arc<RwLock<dyn LightTrait>>>,
-    pub(in crate::rasterization) shader: unsafe fn(*mut Scene, i32, i32, i32, i32),
+    pub(in crate::rasterization) models: Vec<Arc<Mutex<Model>>>,
+    pub(in crate::rasterization) lights: Vec<Arc<Mutex<dyn LightTrait>>>,
+    pub(in crate::rasterization) shader:
+        unsafe fn(*mut Scene, *const Vec<*const dyn LightTrait>, i32, i32, i32, i32),
 }
 impl Default for Scene {
     fn default() -> Self {
@@ -89,17 +80,17 @@ impl Scene {
             shader: crate::rasterization::shader::default_texture_shader,
         }
     }
-    pub fn add_model(&mut self, model: Arc<RwLock<Model>>) {
+    pub fn add_model(&mut self, model: Arc<Mutex<Model>>) {
         self.models.push(model);
     }
-    pub fn add_light(&mut self, light: Arc<RwLock<dyn LightTrait>>) {
+    pub fn add_light(&mut self, light: Arc<Mutex<dyn LightTrait>>) {
         self.lights.push(light);
     }
-    pub fn delete_model(&mut self, target: &Arc<RwLock<Model>>) {
+    pub fn delete_model(&mut self, target: &Arc<Mutex<Model>>) {
         self.models.retain(|model| !Arc::ptr_eq(model, target));
     }
 
-    pub fn delete_light(&mut self, target: &Arc<RwLock<dyn LightTrait>>) {
+    pub fn delete_light(&mut self, target: &Arc<Mutex<dyn LightTrait>>) {
         self.lights.retain(|light| !Arc::ptr_eq(light, target));
     }
     pub fn get_index(&self, x: i32, y: i32) -> i32 {
@@ -144,13 +135,17 @@ impl Scene {
     pub fn get_height(&self) -> i32 {
         self.height
     }
-    pub fn set_shader(&mut self, shader: unsafe fn(*mut Scene, i32, i32, i32, i32)) {
+    pub fn set_shader(
+        &mut self,
+        shader: unsafe fn(*mut Scene, *const Vec<*const dyn LightTrait>, i32, i32, i32, i32),
+    ) {
         self.shader = shader;
     }
-    pub fn get_shader(&self) -> unsafe fn(*mut Scene, i32, i32, i32, i32) {
+    pub fn get_shader(
+        &self,
+    ) -> unsafe fn(*mut Scene, *const Vec<*const dyn LightTrait>, i32, i32, i32, i32) {
         self.shader
     }
-    //   void start_render();
     pub fn start_render(&mut self) {
         self.frame_buffer.resize(
             (self.width * self.height) as usize,
@@ -191,38 +186,55 @@ impl Scene {
             get_projection_matrix(self.fov, self.aspect_ratio, self.z_near, self.z_far);
         let mvp = projection * view * modeling;
         let mv = view * modeling;
-        let mut locked_lights = vec![];
-        for light in &self.lights {
-            locked_lights.push(light.write());
+
+        let scene_ptr = MutScenePtr(self as *const Scene as *mut Scene);
+
+        let mut locked_lights = Vec::with_capacity(self.lights.len());
+        let mut raw_const_lights = Vec::with_capacity(self.lights.len());
+        let mut raw_mut_lights = Vec::with_capacity(self.lights.len());
+        for light in &mut self.lights {
+            let guard = light.lock().unwrap();
+            let raw_const_ptr = &*guard as *const dyn LightTrait;
+            let raw_mut_ptr = raw_const_ptr as *mut dyn LightTrait;
+            locked_lights.push(guard);
+            raw_const_lights.push(raw_const_ptr);
+            raw_mut_lights.push(raw_mut_ptr);
         }
-        let mut locked_models = vec![];
-        for model in &self.models {
-            locked_models.push(model.write());
+        let vec_const_light_ptr = MutVecConstLightPtr(&mut raw_const_lights);
+        let vec_mut_light_ptr = MutVecMutLightPtr(&mut raw_mut_lights);
+
+        let mut locked_models = Vec::with_capacity(self.models.len());
+        let mut raw_const_models = Vec::with_capacity(self.models.len());
+        let mut raw_mut_models = Vec::with_capacity(self.models.len());
+        for model in &mut self.models {
+            let guard = model.lock().unwrap();
+            let raw_const_ptr = &*guard as *const Model;
+            let raw_mut_ptr = raw_const_ptr as *mut Model;
+            locked_models.push(guard);
+            raw_const_models.push(raw_const_ptr);
+            raw_mut_models.push(raw_mut_ptr);
         }
+        let vec_const_model_ptr = MutVecConstModelPtr(&mut raw_const_models);
+        let vec_mut_model_ptr = MutVecMutModelPtr(&mut raw_mut_models);
         for light in &mut locked_lights {
-            light.look_at(&mut locked_models);
+            light.look_at(unsafe { vec_mut_model_ptr.get() });
         }
         for model in &mut locked_models {
             model.clip(&mvp, &mv);
             model.to_NDC(self.width as u32, self.height as u32);
         }
-        let locked_models_read: Vec<_> = locked_models
-            .into_iter()
-            .map(RwLockWriteGuard::downgrade)
-            .collect();
-        //将locked_models中的写锁原子转换为读锁
         let thread_num = std::cmp::min(self.height, SCENE_MAXIMUM_THREAD_NUM);
         let rows_per_thread = (self.height as f32 / thread_num as f32).ceil() as i32;
-        let scene_ptr = ScenePtr(self as *const Scene as *mut Scene);
         let self_width = self.width;
         let self_height = self.height;
-        let mut handles = Vec::new();
+        let mut handles = Vec::with_capacity(thread_num as usize);
         for tid in 0..thread_num - 1 {
             let handle = thread::spawn(move || unsafe {
+                let models = vec_const_model_ptr.get();
                 let scene: *mut Scene = scene_ptr.get_mut();
-                for model in &(*scene).models {
-                    let model = model.read();
-                    model.rasterization(
+                for model in &(*models) {
+                    let model_ref = (*model).as_ref().unwrap();
+                    model_ref.rasterization(
                         scene,
                         tid * rows_per_thread,
                         0,
@@ -234,10 +246,11 @@ impl Scene {
             handles.push(handle);
         }
         let handle = thread::spawn(move || unsafe {
+            let models = vec_const_model_ptr.get();
             let scene: *mut Scene = scene_ptr.get_mut();
-            for model in &(*scene).models {
-                let model = model.read();
-                model.rasterization(
+            for model in &(*models) {
+                let model_ref = (*model).as_ref().unwrap();
+                model_ref.rasterization(
                     scene,
                     (thread_num - 1) * rows_per_thread,
                     0,
@@ -255,22 +268,28 @@ impl Scene {
             light.generate_penumbra_mask(unsafe { scene_ptr.get() });
             light.box_blur_penumbra_mask(box_radius);
         }
-        let locked_lights_read: Vec<_> = locked_lights
-            .into_iter()
-            .map(RwLockWriteGuard::downgrade)
-            .collect();
-        let mut handles = Vec::new();
+        let mut handles = Vec::with_capacity(thread_num as usize);
         for tid in 0..thread_num - 1 {
             let handle = thread::spawn(move || unsafe {
+                let lights = vec_const_light_ptr.get();
                 let scene: *mut Scene = scene_ptr.get_mut();
-                ((*scene).shader)(scene, tid * rows_per_thread, 0, rows_per_thread, self_width)
+                ((*scene).shader)(
+                    scene,
+                    lights,
+                    tid * rows_per_thread,
+                    0,
+                    rows_per_thread,
+                    self_width,
+                )
             });
             handles.push(handle);
         }
         let handle = thread::spawn(move || unsafe {
+            let lights = vec_const_light_ptr.get();
             let scene: *mut Scene = scene_ptr.get_mut();
             ((*scene).shader)(
                 scene,
+                lights,
                 (thread_num - 1) * rows_per_thread,
                 0,
                 self_height - (thread_num - 1) * rows_per_thread,

@@ -1,5 +1,3 @@
-use parking_lot::RwLockWriteGuard;
-
 use crate::util::math::*;
 
 use super::model::Model;
@@ -36,21 +34,14 @@ impl LightTrait for Light {
     fn get_intensity(&self) -> Vector3f {
         self.intensity
     }
-    fn look_at(&mut self, models: &mut Vec<RwLockWriteGuard<Model>>) {}
+    fn look_at(&mut self, models: *const Vec<*mut Model>) {}
     fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32 {
         1.0
     }
     fn in_penumbra_mask(&self, x: i32, y: i32) -> bool {
         false
     }
-    fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {
-
-        // let penumbra_width = (self.width as f32 * 0.25).ceil() as i32;
-        // let penumbra_height = (self.height as f32 * 0.25).ceil() as i32;
-        // let penumbra_mask_thread_num = min(penumbra_height, SCENE_MAXIMUM_THREAD_NUM);
-        // let penumbra_rows_per_thread =
-        //     (penumbra_height as f32 / penumbra_mask_thread_num as f32).ceil() as i32;
-    }
+    fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {}
     fn box_blur_penumbra_mask(&mut self, radius: i32) {}
 }
 impl Light {
@@ -70,14 +61,7 @@ impl Light {
     pub fn in_shadow_pcss(&self, point: Vector3f, normal: Vector3f) -> f32 {
         1.0
     }
-    pub fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {
-
-        // let penumbra_width = (self.width as f32 * 0.25).ceil() as i32;
-        // let penumbra_height = (self.height as f32 * 0.25).ceil() as i32;
-        // let penumbra_mask_thread_num = min(penumbra_height, SCENE_MAXIMUM_THREAD_NUM);
-        // let penumbra_rows_per_thread =
-        //     (penumbra_height as f32 / penumbra_mask_thread_num as f32).ceil() as i32;
-    }
+    pub fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {}
     fn generate_penumbra_mask_block(
         &mut self,
         scene: *const crate::rasterization::scene::Scene,
@@ -93,7 +77,7 @@ pub trait LightTrait: Send + Sync {
     fn get_pos(&self) -> Vector3f;
     fn set_intensity(&mut self, intensity: Vector3f);
     fn get_intensity(&self) -> Vector3f;
-    fn look_at(&mut self, models: &mut Vec<RwLockWriteGuard<Model>>);
+    fn look_at(&mut self, models: *const Vec<*mut Model>);
     fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32;
     fn in_penumbra_mask(&self, x: i32, y: i32) -> bool;
     fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene);

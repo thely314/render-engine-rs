@@ -10,14 +10,14 @@ pub mod util;
 mod test {
     use std::env::current_dir;
     use std::path::{self, Path};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use assimp::Color4D;
-    use parking_lot::RwLock;
 
-    use crate::rasterization::light::Light;
+    use crate::rasterization::light::{Light, LightTrait};
     use crate::rasterization::model::Model;
     use crate::rasterization::scene::Scene;
+    use crate::rasterization::spot_light::SpotLight;
     use crate::rasterization::*;
     use crate::util::math::*;
     #[test]
@@ -55,34 +55,50 @@ mod test {
     #[test]
     pub fn test_scene() {
         let mut scene = Scene::default();
-        let model = Arc::new(RwLock::new(Model::from_file(
+        let model = Arc::new(Mutex::new(Model::from_file(
             "./models/tallbox.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
         )));
-        let floor = Arc::new(RwLock::new(Model::from_file(
+        let floor = Arc::new(Mutex::new(Model::from_file(
             "./models/floor.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
         )));
-        model.write().set_pos(Vector3f::new(0.0, -2.45, 0.0));
-        floor.write().set_pos(Vector3f::new(0.0, -2.45, 0.0));
+        model
+            .lock()
+            .unwrap()
+            .set_pos(Vector3f::new(0.0, -2.45, 0.0));
+        floor
+            .lock()
+            .unwrap()
+            .set_pos(Vector3f::new(0.0, -2.45, 0.0));
         scene.add_model(model.clone());
         scene.add_model(floor.clone());
-        let light = Arc::new(RwLock::new(Light::new(
-            Vector3f::new(10.0, 10.0, 10.0),
-            Vector3f::new(250.0, 250.0, 250.0),
-        )));
+        let spot_light = Arc::new(Mutex::new(SpotLight::default()));
+        spot_light
+            .lock()
+            .unwrap()
+            .set_pos(Vector3f::new(10.0, 10.0, 10.0));
+        spot_light
+            .lock()
+            .unwrap()
+            .set_intensity(Vector3f::new(250.0, 250.0, 250.0));
+        spot_light
+            .lock()
+            .unwrap()
+            .set_light_dir(-Vector3f::new(10.0, 10.0, 10.0).normalize());
         scene.set_eye_pos(Vector3f::new(0.0, 0.0, 7.0));
-        scene.add_light(light.clone());
-        // scene.start_render();
-        // scene.save_to_file(Path::new("output.png"));
-        for i in 0..36 {
-            scene.start_render();
-            let _ = scene.save_to_file(Path::new(&format!("output{}.png", i + 1)));
-            model.write().modeling(&get_modeling_matrix(
-                Vector3f::new(0.0, 1.0, 0.0),
-                10.0,
-                Vector3f::new(0.0, 0.0, 0.0),
-            ));
-        }
+        scene.add_light(spot_light);
+        // scene.add_light(light.clone());
+        scene.start_render();
+        scene.save_to_file(Path::new("output.png"));
+        // for i in 0..36 {
+        //     scene.start_render();
+        //     let _ = scene.save_to_file(Path::new(&format!("output{}.png", i + 1)));
+        //     model.lock().unwrap().modeling(&get_modeling_matrix(
+        //         Vector3f::new(0.0, 1.0, 0.0),
+        //         10.0,
+        //         Vector3f::new(0.0, 0.0, 0.0),
+        //     ));
+        // }
     }
 }

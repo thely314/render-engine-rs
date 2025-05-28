@@ -8,6 +8,7 @@ use crate::util::math::Vector3f;
 use crate::util::math::EPSILON;
 pub unsafe fn default_texture_shader(
     scene: *mut Scene,
+    lights: *const Vec<*const dyn LightTrait>,
     start_row: i32,
     start_col: i32,
     block_row: i32,
@@ -30,20 +31,17 @@ pub unsafe fn default_texture_shader(
             let ks = (*scene).specular_buffer[idx];
             let mut result_color = (*scene).glow_buffer[idx];
             let ambient_intensity = Vector3f::new(0.05, 0.05, 0.05);
-            if x == 0 && y == 512 {
-                println!(
-                    "{:?}\n{:?}\n{:?}\n{:?}\n{:?}\n{:?}\n",
-                    point, normal, ka, kd, ks, result_color
-                );
-            }
-            for light in &(*scene).lights {
-                let light = light.read();
+            for light in &(*lights) {
                 let visiblity: f32;
-                if light.in_penumbra_mask(x, y) {
-                    visiblity = light.in_shadow(point, normal, ShadowMethod::PCSS);
+                let light_ref = (*light).as_ref().unwrap();
+                if light_ref.in_penumbra_mask(x, y) {
+                    // result_color = Vector3f::new(1.0, 1.0, 1.0);
+                    visiblity = light_ref.in_shadow(point, normal, ShadowMethod::PCSS);
                 } else {
-                    visiblity = light.in_shadow(point, normal, ShadowMethod::DIRECT);
+                    // result_color = Vector3f::new(0.0, 0.0, 0.0);
+                    visiblity = light_ref.in_shadow(point, normal, ShadowMethod::DIRECT);
                 }
+                // break;
                 let ambient = ka.component_mul(&ambient_intensity);
                 result_color += ambient;
                 if visiblity < EPSILON {
@@ -51,8 +49,8 @@ pub unsafe fn default_texture_shader(
                 }
                 let light_pos: Vector3f;
                 let light_intensity: Vector3f;
-                light_pos = light.get_pos();
-                light_intensity = light.get_intensity();
+                light_pos = light_ref.get_pos();
+                light_intensity = light_ref.get_intensity();
                 let view_dir = ((*scene).eye_pos - point).normalize();
                 let light_dir = light_pos - point;
                 let distance_square = light_dir.dot(&light_dir);
@@ -62,7 +60,7 @@ pub unsafe fn default_texture_shader(
                     * kd.component_mul(&light_intensity);
                 let specular = f32::max(0.0, half_dir.dot(&normal)).powf(150.0) / distance_square
                     * ks.component_mul(&light_intensity);
-                result_color += diffuse + specular;
+                result_color += visiblity * (diffuse + specular);
             }
             (*scene).frame_buffer[idx] = result_color;
         }
