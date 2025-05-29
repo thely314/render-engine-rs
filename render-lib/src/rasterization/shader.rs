@@ -35,30 +35,22 @@ pub unsafe fn default_texture_shader(
                 let visiblity: f32;
                 let light_ref = (*light).as_ref().unwrap();
                 if light_ref.in_penumbra_mask(x, y) {
-                    // result_color = Vector3f::new(1.0, 1.0, 1.0);
                     visiblity = light_ref.in_shadow(point, normal, ShadowMethod::PCSS);
                 } else {
-                    // result_color = Vector3f::new(0.0, 0.0, 0.0);
                     visiblity = light_ref.in_shadow(point, normal, ShadowMethod::DIRECT);
                 }
-                // break;
                 let ambient = ka.component_mul(&ambient_intensity);
                 result_color += ambient;
                 if visiblity < EPSILON {
                     continue;
                 }
-                let light_pos: Vector3f;
-                let light_intensity: Vector3f;
-                light_pos = light_ref.get_pos();
-                light_intensity = light_ref.get_intensity();
-                let view_dir = ((*scene).eye_pos - point).normalize();
-                let light_dir = light_pos - point;
-                let distance_square = light_dir.dot(&light_dir);
-                let light_dir = light_dir.normalize();
-                let half_dir = (view_dir + light_dir).normalize();
-                let diffuse = f32::max(0.0, light_dir.dot(&normal)) / distance_square
-                    * kd.component_mul(&light_intensity);
-                let specular = f32::max(0.0, half_dir.dot(&normal)).powf(150.0) / distance_square
+                let view_dir = (point - (*scene).eye_pos).normalize();
+                let light_dir = light_ref.compute_world_light_dir(point);
+                let light_intensity = light_ref.compute_world_light_intensity(point);
+                let half_dir = -(view_dir + light_dir).normalize();
+                let diffuse =
+                    f32::max(0.0, -light_dir.dot(&normal)) * kd.component_mul(&light_intensity);
+                let specular = f32::max(0.0, half_dir.dot(&normal)).powf(150.0)
                     * ks.component_mul(&light_intensity);
                 result_color += visiblity * (diffuse + specular);
             }

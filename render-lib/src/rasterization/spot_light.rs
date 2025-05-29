@@ -4,12 +4,10 @@ use std::thread;
 
 use crate::rasterization::light::*;
 use crate::rasterization::model::*;
-use crate::rasterization::scene::*;
 use crate::util::math::*;
 use nalgebra::clamp;
 use nalgebra::{max, min};
 
-use super::light;
 use super::unsafe_pack::*;
 const SPOT_LIGHT_MAXIMUM_THREAD_NUM: i32 = 1;
 const SPOT_LIGHT_BIAS_SCALE: f32 = 0.05;
@@ -68,8 +66,6 @@ impl Default for SpotLight {
     }
 }
 
-unsafe impl Send for SpotLight {}
-unsafe impl Sync for SpotLight {}
 impl LightTrait for SpotLight {
     fn get_pos(&self) -> Vector3f {
         self.light.get_pos()
@@ -82,6 +78,12 @@ impl LightTrait for SpotLight {
     }
     fn set_intensity(&mut self, intensity: Vector3f) {
         self.light.set_intensity(intensity);
+    }
+    fn compute_world_light_dir(&self, point: Vector3f) -> Vector3f {
+        (point - self.get_pos()).normalize()
+    }
+    fn compute_world_light_intensity(&self, point: Vector3f) -> Vector3f {
+        self.get_intensity() / ((point - self.get_pos()).dot(&(point - self.get_pos())))
     }
     fn look_at(&mut self, models: *const Vec<*mut Model>) {
         if !self.enable_shadow {
@@ -157,6 +159,21 @@ impl LightTrait for SpotLight {
             handle.join().unwrap();
         }
     }
+
+    fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32 {
+        match shadow_method {
+            ShadowMethod::DIRECT => self.in_shadow_direct(point, normal),
+            ShadowMethod::PCF => self.in_shadow_pcf(point, normal),
+            ShadowMethod::PCSS => self.in_shadow_pcss(point, normal),
+        }
+    }
+    fn in_penumbra_mask(&self, x: i32, y: i32) -> bool {
+        if self.enable_shadow && self.enable_penumbra_mask {
+            return self.penumbra_mask[self.get_penumbra_mask_index(x / 4, y / 4) as usize]
+                > EPSILON;
+        }
+        true
+    }
     fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {
         if !self.enable_shadow || !self.enable_penumbra_mask {
             return;
@@ -227,23 +244,80 @@ impl LightTrait for SpotLight {
             &get_index_closure,
         );
     }
-    fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32 {
-        self.in_shadow_pcss(point, normal)
-    }
-    fn in_penumbra_mask(&self, x: i32, y: i32) -> bool {
-        if self.enable_shadow && self.enable_penumbra_mask {
-            return self.penumbra_mask[self.get_penumbra_mask_index(x / 4, y / 4) as usize]
-                > EPSILON;
-        }
-        true
-    }
 }
 impl SpotLight {
     pub fn set_light_dir(&mut self, light_dir: Vector3f) {
-        self.light_dir = light_dir;
+        self.light_dir = light_dir.normalize();
     }
     pub fn get_light_dir(&self) -> Vector3f {
         self.light_dir
+    }
+    pub fn set_fov(&mut self, fov: f32) {
+        self.fov = fov;
+    }
+    pub fn get_fov(&self) -> f32 {
+        self.fov
+    }
+    pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio;
+    }
+    pub fn get_aspect_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
+    pub fn set_z_near(&mut self, z_near: f32) {
+        self.z_near = z_near;
+    }
+    pub fn get_z_near(&self) -> f32 {
+        self.z_near
+    }
+    pub fn set_z_far(&mut self, z_far: f32) {
+        self.z_far = z_far;
+    }
+    pub fn get_z_far(&self) -> f32 {
+        self.z_far
+    }
+    pub fn set_z_buffer_width(&mut self, z_buffer_width: i32) {
+        self.z_buffer_width = z_buffer_width;
+    }
+    pub fn get_z_buffer_width(&self) -> i32 {
+        self.z_buffer_width
+    }
+    pub fn set_z_buffer_height(&mut self, z_buffer_height: i32) {
+        self.z_buffer_height = z_buffer_height;
+    }
+    pub fn get_z_buffer_height(&self) -> i32 {
+        self.z_buffer_height
+    }
+    pub fn get_shadow_status(&self) -> bool {
+        self.enable_shadow
+    }
+
+    pub fn set_shadow_status(&mut self, status: bool) {
+        self.enable_shadow = status;
+    }
+
+    pub fn get_pcf_sample_accelerate_status(&self) -> bool {
+        self.enable_pcf_sample_accelerate
+    }
+
+    pub fn set_pcf_sample_accelerate_status(&mut self, status: bool) {
+        self.enable_pcf_sample_accelerate = status;
+    }
+
+    pub fn get_pcss_sample_accelerate_status(&self) -> bool {
+        self.enable_pcss_sample_accelerate
+    }
+
+    pub fn set_pcss_sample_accelerate_status(&mut self, status: bool) {
+        self.enable_pcss_sample_accelerate = status;
+    }
+
+    pub fn get_penumbra_mask_status(&self) -> bool {
+        self.enable_penumbra_mask
+    }
+
+    pub fn set_penumbra_mask_status(&mut self, status: bool) {
+        self.enable_penumbra_mask = status;
     }
     fn get_index(&self, x: i32, y: i32) -> i32 {
         self.z_buffer_width * y + x
@@ -323,8 +397,18 @@ impl SpotLight {
             * 512.0
             * self.pixel_radius;
         let mut unshadow_num = 0;
-        for y in -SPOT_LIGHT_PCF_RADIUS..=SPOT_LIGHT_PCF_RADIUS {
-            for x in -SPOT_LIGHT_PCF_RADIUS..=SPOT_LIGHT_PCF_RADIUS {
+        let pcf_radius = SPOT_LIGHT_PCF_RADIUS;
+        if self.enable_pcf_sample_accelerate {
+            let sample_count_inverse = 1.0 / SPOT_LIGHT_SAMPLE_NUM as f32;
+            for i in 0..SPOT_LIGHT_SAMPLE_NUM {
+                let sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
+                    i,
+                    sample_count_inverse,
+                    SPOT_LIGHT_FIBONACCI_CLUMP_EXPONENT,
+                    0.0,
+                );
+                let x = (pcf_radius as f32 * sample_dir.x).round() as i32;
+                let y = (pcf_radius as f32 * sample_dir.y).round() as i32;
                 let idx_x = clamp(center_x + x, 0, self.z_buffer_width - 1);
                 let idx_y = clamp(center_y + y, 0, self.z_buffer_height - 1);
                 if transform_pos.z + (max(x.abs(), y.abs()) + 1) as f32 * bias
@@ -333,8 +417,21 @@ impl SpotLight {
                     unshadow_num += 1;
                 }
             }
+            unshadow_num as f32 / SPOT_LIGHT_SAMPLE_NUM as f32
+        } else {
+            for y in -pcf_radius..=pcf_radius {
+                for x in -pcf_radius..=pcf_radius {
+                    let idx_x = clamp(center_x + x, 0, self.z_buffer_width - 1);
+                    let idx_y = clamp(center_y + y, 0, self.z_buffer_height - 1);
+                    if transform_pos.z + (max(x.abs(), y.abs()) + 1) as f32 * bias
+                        > self.z_buffer[self.get_index(idx_x, idx_y) as usize]
+                    {
+                        unshadow_num += 1;
+                    }
+                }
+            }
+            unshadow_num as f32 / (2 * pcf_radius + 1).pow(2) as f32
         }
-        unshadow_num as f32 / (2 * SPOT_LIGHT_PCF_RADIUS + 1).pow(2) as f32
     }
     fn in_shadow_pcss(&self, point: Vector3f, normal: Vector3f) -> f32 {
         if !self.enable_shadow {

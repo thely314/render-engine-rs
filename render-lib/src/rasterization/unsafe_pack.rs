@@ -2,6 +2,7 @@ use crate::rasterization::light::*;
 use crate::rasterization::model::*;
 use crate::rasterization::scene::*;
 
+use super::directional_light::DirectionalLight;
 use super::spot_light::SpotLight;
 #[derive(Clone, Copy)]
 pub(in crate::rasterization) struct MutScenePtr(pub(in crate::rasterization) *mut Scene);
@@ -43,6 +44,31 @@ pub(in crate::rasterization) struct ConstSpotLightPtr(
 unsafe impl Send for ConstSpotLightPtr {}
 impl ConstSpotLightPtr {
     pub(in crate::rasterization) unsafe fn get(self) -> *const SpotLight {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::rasterization) struct MutDirectionalLightPtr(
+    pub(in crate::rasterization) *mut DirectionalLight,
+);
+unsafe impl Send for MutDirectionalLightPtr {}
+impl MutDirectionalLightPtr {
+    pub(in crate::rasterization) unsafe fn get_mut(self) -> *mut DirectionalLight {
+        self.0
+    }
+    pub(in crate::rasterization) unsafe fn get(self) -> *const DirectionalLight {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::rasterization) struct ConstDirectionalLightPtr(
+    pub(in crate::rasterization) *const DirectionalLight,
+);
+unsafe impl Send for ConstDirectionalLightPtr {}
+impl ConstDirectionalLightPtr {
+    pub(in crate::rasterization) unsafe fn get(self) -> *const DirectionalLight {
         self.0
     }
 }

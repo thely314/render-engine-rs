@@ -20,7 +20,7 @@ impl Default for Texture {
     }
 }
 impl Texture {
-    pub fn new(filename: &std::path::Path, desired_channels: Option<u32>) -> Self {
+    pub fn new(filename: &str, desired_channels: Option<u32>) -> Self {
         let img = image::ImageReader::open(filename)
             .expect("Failed to open image")
             .decode()

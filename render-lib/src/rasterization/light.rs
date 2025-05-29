@@ -19,8 +19,6 @@ impl Default for Light {
         }
     }
 }
-unsafe impl Send for Light {}
-unsafe impl Sync for Light {}
 impl LightTrait for Light {
     fn set_pos(&mut self, pos: Vector3f) {
         self.pos = pos;
@@ -33,6 +31,12 @@ impl LightTrait for Light {
     }
     fn get_intensity(&self) -> Vector3f {
         self.intensity
+    }
+    fn compute_world_light_dir(&self, point: Vector3f) -> Vector3f {
+        (point - self.pos).normalize()
+    }
+    fn compute_world_light_intensity(&self, point: Vector3f) -> Vector3f {
+        self.intensity / ((point - self.pos).dot(&(point - self.pos)))
     }
     fn look_at(&mut self, models: *const Vec<*mut Model>) {}
     fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32 {
@@ -52,16 +56,28 @@ impl Light {
         }
     }
 
-    pub fn in_shadow_direct(&self, point: Vector3f, normal: Vector3f) -> f32 {
+    pub(in crate::rasterization) fn in_shadow_direct(
+        &self,
+        point: Vector3f,
+        normal: Vector3f,
+    ) -> f32 {
         1.0
     }
-    pub fn in_shadow_pcf(&self, point: Vector3f, normal: Vector3f) -> f32 {
+    pub(in crate::rasterization) fn in_shadow_pcf(&self, point: Vector3f, normal: Vector3f) -> f32 {
         1.0
     }
-    pub fn in_shadow_pcss(&self, point: Vector3f, normal: Vector3f) -> f32 {
+    pub(in crate::rasterization) fn in_shadow_pcss(
+        &self,
+        point: Vector3f,
+        normal: Vector3f,
+    ) -> f32 {
         1.0
     }
-    pub fn generate_penumbra_mask(&mut self, scene: *const crate::rasterization::scene::Scene) {}
+    pub(in crate::rasterization) fn generate_penumbra_mask(
+        &mut self,
+        scene: *const crate::rasterization::scene::Scene,
+    ) {
+    }
     fn generate_penumbra_mask_block(
         &mut self,
         scene: *const crate::rasterization::scene::Scene,
@@ -77,6 +93,8 @@ pub trait LightTrait: Send + Sync {
     fn get_pos(&self) -> Vector3f;
     fn set_intensity(&mut self, intensity: Vector3f);
     fn get_intensity(&self) -> Vector3f;
+    fn compute_world_light_dir(&self, point: Vector3f) -> Vector3f;
+    fn compute_world_light_intensity(&self, point: Vector3f) -> Vector3f;
     fn look_at(&mut self, models: *const Vec<*mut Model>);
     fn in_shadow(&self, point: Vector3f, normal: Vector3f, shadow_method: ShadowMethod) -> f32;
     fn in_penumbra_mask(&self, x: i32, y: i32) -> bool;

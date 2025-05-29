@@ -111,6 +111,18 @@ impl Scene {
     pub fn get_view_dir(&self) -> Vector3f {
         self.view_dir
     }
+    pub fn set_fov(&mut self, fov: f32) {
+        self.fov = fov;
+    }
+    pub fn get_fov(&self) -> f32 {
+        self.fov
+    }
+    pub fn set_aspect_ratio(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio;
+    }
+    pub fn get_aspect_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
     pub fn set_z_near(&mut self, z_near: f32) {
         self.z_near = z_near;
     }
