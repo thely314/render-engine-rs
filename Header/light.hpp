@@ -1,4 +1,5 @@
 #pragma once
+#include "Eigen/Core"
 #include <Eigen/Dense>
 #include <vector>
 
@@ -69,14 +70,18 @@ public:
   void set_pos(const Eigen::Vector3f &pos);
   Eigen::Vector3f get_intensity() const;
   void set_intensity(const Eigen::Vector3f &intensity);
-  virtual void look_at(const Scene &);
   virtual float in_shadow(const Eigen::Vector3f &point_pos,
                           const Eigen::Vector3f &normal,
                           SHADOW_METHOD shadow_method) const;
-  virtual bool in_penumbra_mask(int x, int y);
+  virtual bool in_penumbra_mask(int x, int y) const;
+  virtual Eigen::Vector3f
+  compute_world_light_dir(const Eigen::Vector3f &point_pos) const;
+  virtual Eigen::Vector3f
+  compute_world_light_intensity(const Eigen::Vector3f &point_pos) const;
   virtual ~light() = default;
 
 protected:
+  virtual void look_at(const Scene &);
   virtual float in_shadow_direct(const Eigen::Vector3f &point_pos,
                                  const Eigen::Vector3f &normal) const;
   virtual float in_shadow_pcf(const Eigen::Vector3f &point_pos,
@@ -119,6 +124,15 @@ public:
   bool get_penumbra_mask_status() const;
   void set_penumbra_mask_status(bool status);
 
+  bool in_penumbra_mask(int x, int y) const override;
+  float in_shadow(const Eigen::Vector3f &point_pos,
+                  const Eigen::Vector3f &normal,
+                  SHADOW_METHOD shadow_method) const override;
+  Eigen::Vector3f
+  compute_world_light_dir(const Eigen::Vector3f &point_pos) const override;
+  Eigen::Vector3f compute_world_light_intensity(
+      const Eigen::Vector3f &point_pos) const override;
+
 private:
   Eigen::Vector3f light_dir;
   float fov;
@@ -143,10 +157,6 @@ private:
   int get_index(int x, int y) const;
   int get_penumbra_mask_index(int x, int y) const;
   void look_at(const Scene &) override;
-  float in_shadow(const Eigen::Vector3f &point_pos,
-                  const Eigen::Vector3f &normal,
-                  SHADOW_METHOD shadow_method) const override;
-  bool in_penumbra_mask(int x, int y) override;
   float in_shadow_direct(const Eigen::Vector3f &point_pos,
                          const Eigen::Vector3f &normal) const override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,
@@ -190,6 +200,15 @@ public:
   bool get_penumbra_mask_status() const;
   void set_penumbra_mask_status(bool status);
 
+  bool in_penumbra_mask(int x, int y) const override;
+  float in_shadow(const Eigen::Vector3f &point_pos,
+                  const Eigen::Vector3f &normal,
+                  SHADOW_METHOD shadow_method) const override;
+  Eigen::Vector3f
+  compute_world_light_dir(const Eigen::Vector3f &point_pos) const override;
+  Eigen::Vector3f compute_world_light_intensity(
+      const Eigen::Vector3f &point_pos) const override;
+
 private:
   Eigen::Vector3f light_dir;
   float view_width;
@@ -216,10 +235,6 @@ private:
   int get_index(int x, int y) const;
   int get_penumbra_mask_index(int x, int y) const;
   void look_at(const Scene &) override;
-  bool in_penumbra_mask(int x, int y) override;
-  float in_shadow(const Eigen::Vector3f &point_pos,
-                  const Eigen::Vector3f &normal,
-                  SHADOW_METHOD shadow_method) const override;
   float in_shadow_direct(const Eigen::Vector3f &point_pos,
                          const Eigen::Vector3f &normal) const override;
   float in_shadow_pcf(const Eigen::Vector3f &point_pos,

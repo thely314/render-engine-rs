@@ -11,7 +11,7 @@ constexpr int directional_light_sample_num = 64;
 directional_light::directional_light()
     : light(), light_dir(0.0f, 0.0f, -1.0f), view_width(50.0f),
       view_height(50.0f), angular_diameter(3.0f), zNear(-0.1f), zFar(-1000.0f),
-      pixel_radius(0.0f), zbuffer_width(2048), zbuffer_height(2048),
+      pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
       penumbra_mask_width(0), penumbra_mask_height(0), enable_shadow(true),
       enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
       enable_penumbra_mask(true), mvp(Eigen::Matrix<float, 4, 4>::Identity()),
@@ -20,7 +20,7 @@ directional_light::directional_light()
 Eigen::Vector3f directional_light::get_light_dir() const { return light_dir; }
 
 void directional_light::set_light_dir(const Eigen::Vector3f &dir) {
-  light_dir = dir;
+  light_dir = dir.normalized();
 }
 
 float directional_light::get_view_width() const { return view_width; }
@@ -85,6 +85,16 @@ int directional_light::get_index(int x, int y) const {
 
 int directional_light::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * y + x;
+}
+
+Eigen::Vector3f directional_light::compute_world_light_dir(
+    const Eigen::Vector3f &point_pos) const {
+  return light_dir;
+}
+
+Eigen::Vector3f directional_light::compute_world_light_intensity(
+    const Eigen::Vector3f &point_pos) const {
+  return intensity;
 }
 
 void directional_light::look_at(const Scene &scene) {
@@ -164,7 +174,7 @@ float directional_light::in_shadow(const Eigen::Vector3f &point_pos,
   return 1.0f;
 }
 
-bool directional_light::in_penumbra_mask(int x, int y) {
+bool directional_light::in_penumbra_mask(int x, int y) const {
   if (enable_shadow && enable_penumbra_mask) {
     return penumbra_mask[get_penumbra_mask_index(x / 4, y / 4)] > EPSILON;
   }
@@ -193,8 +203,7 @@ float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
   int y_to_int = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
   float bias = directional_light_bias_scale *
-               std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
-               pixel_radius;
+               std::max(0.2f, 1.0f - light_dir.dot(-normal)) * pixel_radius;
   if (transform_pos.z() + bias > z_buffer[get_index(x_to_int, y_to_int)]) {
     return 1.0f;
   }
@@ -227,8 +236,7 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   int center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
   float bias = directional_light_bias_scale *
-               std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
-               pixel_radius;
+               std::max(0.2f, 1.0f - light_dir.dot(-normal)) * pixel_radius;
   constexpr int pcf_radius = 1;
   if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -284,8 +292,7 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
   int center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
   float bias = directional_light_bias_scale *
-               std::max(0.2f, 1.0f - light_dir.normalized().dot(-normal)) *
-               pixel_radius;
+               std::max(0.2f, 1.0f - light_dir.dot(-normal)) * pixel_radius;
   float light_size_div_distance = 2.0f * tan(M_PI / 360.0f * angular_diameter);
   int pcss_radius =
       std::max(1.0f, 2.5f * light_size_div_distance / pixel_radius);

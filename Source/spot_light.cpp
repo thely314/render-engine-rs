@@ -20,7 +20,9 @@ spot_light::spot_light()
 
 Eigen::Vector3f spot_light::get_light_dir() const { return light_dir; }
 
-void spot_light::set_light_dir(const Eigen::Vector3f &dir) { light_dir = dir; }
+void spot_light::set_light_dir(const Eigen::Vector3f &dir) {
+  light_dir = dir.normalized();
+}
 
 float spot_light::get_fov() const { return fov; }
 
@@ -80,6 +82,18 @@ int spot_light::get_index(int x, int y) const { return zbuffer_width * y + x; }
 int spot_light::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * y + x;
 }
+
+Eigen::Vector3f
+spot_light::compute_world_light_dir(const Eigen::Vector3f &point_pos) const {
+  return (point_pos - pos).normalized();
+}
+
+Eigen::Vector3f spot_light::compute_world_light_intensity(
+    const Eigen::Vector3f &point_pos) const {
+  float distance_square = (point_pos - pos).dot(point_pos - pos);
+  return intensity / distance_square;
+}
+
 void spot_light::look_at(const Scene &scene) {
   if (!enable_shadow) {
     return;
@@ -151,7 +165,7 @@ float spot_light::in_shadow(const Eigen::Vector3f &point_pos,
   return 1.0f;
 }
 
-bool spot_light::in_penumbra_mask(int x, int y) {
+bool spot_light::in_penumbra_mask(int x, int y) const {
   if (enable_shadow && enable_penumbra_mask) {
     return penumbra_mask[get_penumbra_mask_index(x / 4, y / 4)] > EPSILON;
   }

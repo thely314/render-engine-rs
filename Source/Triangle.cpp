@@ -252,7 +252,6 @@ void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
     return;
   }
   const int edge_num = verteies.size();
-  int remain_size = 0;
   std::vector<bool> verteies_unavailable(edge_num);
   for (int i = 0; i < edge_num; ++i) {
     if constexpr (isLess) {
