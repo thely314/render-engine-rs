@@ -5,6 +5,8 @@
 #include "light.hpp"
 #include <algorithm>
 #include <cmath>
+#include <vector>
+
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
     : vertexs{v0, v1, v2} {}
 
@@ -16,6 +18,9 @@ void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
     v.normal = new_normal.normalized();
   }
 }
+template <int N, bool isLess>
+void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
+                   std::vector<Vertex_rasterization> &output);
 
 void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
                     const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {
@@ -30,20 +35,28 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
       return;
     }
   }
-  std::vector<Triangle_rasterization> triangles{*this};
+  std::vector<Vertex_rasterization> result, buffer;
+  result.reserve(12);
+  buffer.reserve(12);
   for (int i = 0; i != 3; ++i) {
-    triangles[0].vertexs[i].transform_pos =
-        mvp * triangles[0].vertexs[i].pos.homogeneous();
+    result.push_back(Vertex_rasterization{
+        vertexs[i].pos, vertexs[i].normal, vertexs[i].color,
+        vertexs[i].texture_coords, mvp * vertexs[i].pos.homogeneous()});
   }
-  clip_triangles<2, true>(triangles);
-  clip_triangles<2, false>(triangles);
-  clip_triangles<1, true>(triangles);
-  clip_triangles<1, false>(triangles);
-  clip_triangles<0, true>(triangles);
-  clip_triangles<0, false>(triangles);
-  // TODO: 上锁
-  for (auto &&obj : triangles) {
-    parent.clip_triangles.push_back(obj);
+  clip_verteies<2, true>(result, buffer);
+  result.clear();
+  clip_verteies<2, false>(buffer, result);
+  buffer.clear();
+  clip_verteies<1, true>(result, buffer);
+  result.clear();
+  clip_verteies<1, false>(buffer, result);
+  buffer.clear();
+  clip_verteies<0, true>(result, buffer);
+  result.clear();
+  clip_verteies<0, false>(buffer, result);
+  for (int i = 0; i < (int)result.size() - 2; ++i) {
+    parent.clip_triangles.push_back(
+        Triangle_rasterization(result[0], result[i + 1], result[i + 2]));
   }
 }
 
@@ -216,129 +229,6 @@ void Triangle_rasterization::to_NDC(int width, int height) {
   }
 }
 
-template <int N, bool isLess>
-void clip_triangles(std::vector<Triangle_rasterization> &triangles) {
-  const int iter_size = triangles.size();
-  int remain_size = 0;
-  for (int i = 0; i != iter_size; ++i) {
-    int vertex_out_of_box_cnt = 0;
-    bool vertex_unavailable[3]{};
-    for (int j = 0; j != 3; ++j) {
-      if constexpr (isLess) {
-        if (triangles[i].vertexs[j].transform_pos[N] <
-            triangles[i].vertexs[j].transform_pos.w()) {
-          ++vertex_out_of_box_cnt;
-          vertex_unavailable[j] = true;
-        }
-      } else {
-        if (triangles[i].vertexs[j].transform_pos[N] >
-            -triangles[i].vertexs[j].transform_pos.w()) {
-          ++vertex_out_of_box_cnt;
-          vertex_unavailable[j] = true;
-        }
-      }
-    }
-    switch (vertex_out_of_box_cnt) {
-    case 0: {
-      if (remain_size != i) {
-        triangles[remain_size] = triangles[i];
-      }
-      ++remain_size;
-      break;
-    }
-    case 1: {
-      int vertex_idxs[3];
-      if (vertex_unavailable[0]) {
-        vertex_idxs[0] = 1;
-        vertex_idxs[1] = 2;
-        vertex_idxs[2] = 0;
-      } else if (vertex_unavailable[1]) {
-        vertex_idxs[0] = 2;
-        vertex_idxs[1] = 0;
-        vertex_idxs[2] = 1;
-      } else {
-        vertex_idxs[0] = 0;
-        vertex_idxs[1] = 1;
-        vertex_idxs[2] = 2;
-      }
-      const Vertex_rasterization &A = triangles[i].vertexs[vertex_idxs[0]];
-      const Vertex_rasterization &B = triangles[i].vertexs[vertex_idxs[1]];
-      Vertex_rasterization &C = triangles[i].vertexs[vertex_idxs[2]];
-      float t_D, t_E;
-      if constexpr (isLess) {
-        t_D = (A.transform_pos[N] - A.transform_pos.w()) /
-              ((A.transform_pos[N] - A.transform_pos.w()) -
-               (C.transform_pos[N] - C.transform_pos.w()));
-        t_E = (B.transform_pos[N] - B.transform_pos.w()) /
-              ((B.transform_pos[N] - B.transform_pos.w()) -
-               (C.transform_pos[N] - C.transform_pos.w()));
-      } else {
-        t_D = (A.transform_pos[N] + A.transform_pos.w()) /
-              ((A.transform_pos[N] + A.transform_pos.w()) -
-               (C.transform_pos[N] + C.transform_pos.w()));
-        t_E = (B.transform_pos[N] + B.transform_pos.w()) /
-              ((B.transform_pos[N] + B.transform_pos.w()) -
-               (C.transform_pos[N] + C.transform_pos.w()));
-      }
-      Vertex_rasterization D = (1 - t_D) * A + t_D * C;
-      Vertex_rasterization E = (1 - t_E) * B + t_E * C;
-      C = D;
-      triangles.push_back(Triangle_rasterization(B, E, D));
-      if (remain_size != i) {
-        triangles[remain_size] = triangles[i];
-      }
-      ++remain_size;
-      break;
-    }
-    case 2: {
-      int vertex_idxs[3];
-      if (!vertex_unavailable[0]) {
-        vertex_idxs[0] = 0;
-        vertex_idxs[1] = 1;
-        vertex_idxs[2] = 2;
-      } else if (!vertex_unavailable[1]) {
-        vertex_idxs[0] = 1;
-        vertex_idxs[1] = 2;
-        vertex_idxs[2] = 0;
-      } else {
-        vertex_idxs[0] = 2;
-        vertex_idxs[1] = 0;
-        vertex_idxs[2] = 1;
-      }
-      const Vertex_rasterization &A = triangles[i].vertexs[vertex_idxs[0]];
-      Vertex_rasterization &B = triangles[i].vertexs[vertex_idxs[1]];
-      Vertex_rasterization &C = triangles[i].vertexs[vertex_idxs[2]];
-      float t_B, t_C;
-      if constexpr (isLess) {
-        t_B = (A.transform_pos[N] - A.transform_pos.w()) /
-              ((A.transform_pos[N] - A.transform_pos.w()) -
-               (B.transform_pos[N] - B.transform_pos.w()));
-        t_C = (A.transform_pos[N] - A.transform_pos.w()) /
-              ((A.transform_pos[N] - A.transform_pos.w()) -
-               (C.transform_pos[N] - C.transform_pos.w()));
-      } else {
-        t_B = (A.transform_pos[N] + A.transform_pos.w()) /
-              ((A.transform_pos[N] + A.transform_pos.w()) -
-               (B.transform_pos[N] + B.transform_pos.w()));
-        t_C = (A.transform_pos[N] + A.transform_pos.w()) /
-              ((A.transform_pos[N] + A.transform_pos.w()) -
-               (C.transform_pos[N] + C.transform_pos.w()));
-      }
-      B = (1 - t_B) * A + t_B * B;
-      C = (1 - t_C) * A + t_C * C;
-      if (remain_size != i) {
-        triangles[remain_size] = triangles[i];
-      }
-      ++remain_size;
-      break;
-    }
-    }
-  }
-  std::copy(triangles.begin() + iter_size, triangles.end(),
-            triangles.begin() + remain_size);
-  triangles.resize(triangles.size() - iter_size + remain_size);
-}
-
 std::tuple<float, float, float> Triangle_rasterization::cal_bary_coord_2D(
     Eigen::Vector2f v0, Eigen::Vector2f v1, Eigen::Vector2f v2,
     Eigen::Vector2f p) {
@@ -354,4 +244,51 @@ std::tuple<float, float, float> Triangle_rasterization::cal_bary_coord_2D(
 bool Triangle_rasterization::inside_triangle(float alpha, float beta,
                                              float gamma) {
   return !(alpha < -EPSILON || beta < -EPSILON || gamma < -EPSILON);
+}
+template <int N, bool isLess>
+void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
+                   std::vector<Vertex_rasterization> &output) {
+  if (verteies.size() < 3) {
+    return;
+  }
+  const int edge_num = verteies.size();
+  int remain_size = 0;
+  std::vector<bool> verteies_unavailable(edge_num);
+  for (int i = 0; i < edge_num; ++i) {
+    if constexpr (isLess) {
+      verteies_unavailable[i] =
+          verteies[i].transform_pos[N] < verteies[i].transform_pos[3];
+    } else {
+      verteies_unavailable[i] =
+          verteies[i].transform_pos[N] > -verteies[i].transform_pos[3];
+    }
+  }
+  for (int i = 0; i < edge_num; ++i) {
+    int left = i;
+    int right = (i + 1) % edge_num;
+    const Vertex_rasterization &left_vertex = verteies[left];
+    const Vertex_rasterization &right_vertex = verteies[right];
+    if (!verteies_unavailable[left] && !verteies_unavailable[right]) {
+      output.push_back(left_vertex);
+    } else if (!verteies_unavailable[left] || !verteies_unavailable[right]) {
+      float t;
+      if constexpr (isLess) {
+        t = (left_vertex.transform_pos[N] - left_vertex.transform_pos[3]) /
+            ((left_vertex.transform_pos[N] - left_vertex.transform_pos[3]) -
+             (right_vertex.transform_pos[N] - right_vertex.transform_pos[3]));
+      } else {
+        t = (left_vertex.transform_pos[N] + left_vertex.transform_pos[3]) /
+            ((left_vertex.transform_pos[N] + left_vertex.transform_pos[3]) -
+             (right_vertex.transform_pos[N] + right_vertex.transform_pos[3]));
+      }
+      Vertex_rasterization new_vertex =
+          (1 - t) * left_vertex + t * right_vertex;
+      if (verteies_unavailable[left]) {
+        output.push_back(new_vertex);
+      } else {
+        output.push_back(left_vertex);
+        output.push_back(new_vertex);
+      }
+    }
+  }
 }

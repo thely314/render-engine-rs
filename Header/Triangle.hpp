@@ -162,8 +162,6 @@ private:
   void to_NDC(int width, int height);
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {}
-  template <int N, bool isLess>
-  friend void clip_triangles(std::vector<Triangle_rasterization> &triangles);
   static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,
                                                            Eigen::Vector2f v1,
                                                            Eigen::Vector2f v2,
