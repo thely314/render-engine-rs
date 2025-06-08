@@ -1,4 +1,5 @@
 #pragma once
+#include "Eigen/Core"
 #include "Scene.hpp"
 #include "Texture.hpp"
 #include "Triangle.hpp"
@@ -34,6 +35,7 @@ public:
             Eigen::Vector3f default_color = {0.5f, 0.5f, 0.5f});
   void set_pos(const Eigen::Vector3f &pos);
   Eigen::Vector3f get_pos() const;
+  void rotate(Eigen::Vector3f axis, float angle);
   void set_scale(float rate);
   float get_scale() const;
   void set_texture(const std::shared_ptr<Texture> &texture, TEXTURES id);

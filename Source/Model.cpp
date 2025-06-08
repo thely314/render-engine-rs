@@ -2,6 +2,7 @@
 #include "Eigen/Core"
 #include "Texture.hpp"
 #include "Triangle.hpp"
+#include "global.hpp"
 #include "light.hpp"
 #include <memory>
 Model::Model() : pos({0.0f, 0.0f, 0.0f}), scale(1.0f) {}
@@ -45,6 +46,29 @@ void Model::set_pos(const Eigen::Vector3f &pos) {
 }
 
 Eigen::Vector3f Model::get_pos() const { return pos; }
+
+void Model::rotate(Eigen::Vector3f axis, float angle) {
+  axis = axis.normalized();
+  Eigen::Matrix<float, 4, 4> move_to_origin =
+                                 Eigen::Matrix<float, 4, 4>::Identity(),
+                             rotate = get_modeling_matrix(axis, angle,
+                                                          {0.0f, 0.0f, 0.0f}),
+                             move_to_pos =
+                                 Eigen::Matrix<float, 4, 4>::Identity();
+  move_to_origin(0, 3) = -pos.x();
+  move_to_origin(1, 3) = -pos.y();
+  move_to_origin(2, 3) = -pos.z();
+  move_to_pos(0, 3) = pos.x();
+  move_to_pos(1, 3) = pos.y();
+  move_to_pos(2, 3) = pos.z();
+  Eigen::Matrix<float, 4, 4> modeling = move_to_pos * rotate * move_to_origin;
+  for (auto &&model : sub_models) {
+    model->modeling(modeling);
+  }
+  for (auto &&triangle : triangles) {
+    triangle.modeling(modeling);
+  }
+}
 
 void Model::set_scale(float rate) {
   float scale_rate = rate / scale;

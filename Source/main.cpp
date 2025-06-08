@@ -52,29 +52,29 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
 int main() {
   auto model = std::make_shared<Model>(
       //
-      // "../models/tallbox.obj"
-      "../models/diablo3/diablo3_pose.obj"
+      "../models/tallbox.obj"
+      // "../models/diablo3/diablo3_pose.obj"
       //
   );
 
-  std::shared_ptr<Texture> diffuse_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
-  model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
+  // std::shared_ptr<Texture> diffuse_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_diffuse.tga");
+  // model->set_texture(diffuse_texture, Model::DIFFUSE_TEXTURE);
 
-  std::shared_ptr<Texture> specular_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
-  model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
+  // std::shared_ptr<Texture> specular_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_spec.tga");
+  // model->set_texture(specular_texture, Model::SPECULAR_TEXTURE);
 
-  std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
-      "../models/diablo3/diablo3_pose_nm_tangent.tga");
-  model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
+  // std::shared_ptr<Texture> normal_texture = std::make_shared<Texture>(
+  //     "../models/diablo3/diablo3_pose_nm_tangent.tga");
+  // model->set_texture(normal_texture, Model::NORMAL_TEXTURE);
 
-  std::shared_ptr<Texture> glow_texture =
-      std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
-  model->set_texture(glow_texture, Model::GLOW_TEXTURE);
+  // std::shared_ptr<Texture> glow_texture =
+  //     std::make_shared<Texture>("../models/diablo3/diablo3_pose_glow.tga");
+  // model->set_texture(glow_texture, Model::GLOW_TEXTURE);
 
-  model->set_scale(2.5f);
-  // model->set_pos({0, -2.45f, 0});
+  // model->set_scale(2.5f);
+  model->set_pos({0, -2.45f, 0});
   auto floor = std::make_shared<Model>("../models/floor.obj");
   // floor->set_scale(0.5f);
   floor->set_pos({0.0f, -2.45f, 0.0f});
@@ -109,9 +109,9 @@ int main() {
   // model->modeling(  get_modeling_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
   my_scene.save_to_file("output.png");
-  // for (int i = 0; i != 36; ++i) {
-  //   my_scene.start_render();
-  //   my_scene.save_to_file(std::format("output{}.png", i + 1));
-  //   model->modeling(get_modeling_matrix({0, 1, 0}, 10, {0, 0, 0}));
-  // }
+  for (int i = 0; i != 36; ++i) {
+    my_scene.start_render();
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
+    model->rotate({1, 0, 0}, 10);
+  }
 }
