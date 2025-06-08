@@ -62,6 +62,7 @@ mod test {
             "./models/diablo3/diablo3_pose.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
         )));
+        //default_color指定在没有指定顶点颜色时，每个顶点的默认颜色
         let floor = Arc::new(Mutex::new(Model::from_file(
             "./models/floor.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
@@ -70,6 +71,7 @@ mod test {
             "./models/diablo3/diablo3_pose_diffuse.tga",
             Some(3),
         ));
+        //desired_channels指定读入纹理的期望通道数，这里期望为rgb三通道图
         let specular_texture = Arc::new(Texture::new(
             "./models/diablo3/diablo3_pose_spec.tga",
             Some(3),
@@ -82,6 +84,10 @@ mod test {
             "./models/diablo3/diablo3_pose_glow.tga",
             Some(3),
         ));
+        //Diffuse->漫反射贴图
+        //Specular->高光贴图
+        //Normal->法线贴图
+        //glow->自发光贴图
         model
             .lock()
             .unwrap()
@@ -103,13 +109,16 @@ mod test {
         //     .unwrap()
         //     .set_pos(Vector3f::new(0.0, -2.45, 0.0));
         model.lock().unwrap().set_scale(2.5);
+        //设定模型大小为原来的2.5倍
         floor
             .lock()
             .unwrap()
             .set_pos(Vector3f::new(0.0, -2.45, 0.0));
+        //设置地板坐标
         scene.add_model(model.clone());
         scene.add_model(floor.clone());
         scene.set_z_far(-100.0);
+        //远平面距离，超过这个距离不渲染
         // let spot_light = Arc::new(Mutex::new(SpotLight::default()));
         // spot_light
         //     .lock()
@@ -129,25 +138,29 @@ mod test {
             .lock()
             .unwrap()
             .set_pos(Vector3f::new(10.0, 10.0, 10.0));
+        //设置光源成像位置
         directional_light
             .lock()
             .unwrap()
             .set_intensity(Vector3f::new(1.0, 1.0, 1.0));
+        //设置光源强度
         directional_light.lock().unwrap().set_light_dir(
             (model.lock().unwrap().get_pos() - Vector3f::new(10.0, 10.0, 10.0)).normalize(),
         );
+        //指定光照方向
         scene.add_light(directional_light);
         scene.set_eye_pos(Vector3f::new(0.0, 0.0, 7.0));
+        //指定摄像机坐标为{0,0,7}
         scene.start_render();
-        scene.save_to_file(Path::new("output.png"));
+        let _ = scene.save_to_file(Path::new("output.png"));
         for i in 0..36 {
             scene.start_render();
             let _ = scene.save_to_file(Path::new(&format!("output{}.png", i + 1)));
-            model.lock().unwrap().modeling(&get_modeling_matrix(
-                Vector3f::new(0.0, 1.0, 0.0),
-                10.0,
-                Vector3f::new(0.0, 0.0, 0.0),
-            ));
+            model
+                .lock()
+                .unwrap()
+                .rotate(Vector3f::new(0.0, 0.0, 1.0), 10.0);
+            //以z轴正方向为旋转轴旋转10度
         }
     }
 }

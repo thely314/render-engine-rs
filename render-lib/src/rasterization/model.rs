@@ -101,7 +101,6 @@ impl Model {
     }
     fn process_mesh(&mut self, mesh: &assimp::Mesh, default_color: Color4D) {
         let mut vertices = Vec::new();
-
         for i in 0..mesh.num_vertices() {
             let position = mesh.get_vertex(i).unwrap_or(Vector3D::new(0.0, 0.0, 0.0));
             let normal = mesh.get_normal(i).unwrap_or(Vector3D::new(0.0, 0.0, 0.0));
@@ -162,6 +161,25 @@ impl Model {
     }
     pub fn get_pos(&self) -> Vector3f {
         self.pos
+    }
+    pub fn rotate(&mut self, axis: Vector3f, angle: f32) {
+        let axis = axis.normalize();
+        let mut move_to_origin = Matrix4f::identity();
+        let mut rotate = get_modeling_matrix(axis, angle, Vector3f::new(0.0, 0.0, 0.0));
+        let mut move_to_pos = Matrix4f::identity();
+        move_to_origin[(0, 3)] = -self.pos.x;
+        move_to_origin[(1, 3)] = -self.pos.y;
+        move_to_origin[(2, 3)] = -self.pos.z;
+        move_to_pos[(0, 3)] = self.pos.x;
+        move_to_pos[(1, 3)] = self.pos.y;
+        move_to_pos[(2, 3)] = self.pos.z;
+        rotate = move_to_pos * rotate * move_to_origin;
+        for sub_model in &self.sub_models {
+            sub_model.lock().unwrap().modeling(&rotate);
+        }
+        for triangle in &mut self.triangles {
+            triangle.modeling(&rotate);
+        }
     }
     pub fn set_scale(&mut self, scale: f32) {
         let scale_rate = scale / self.scale;
