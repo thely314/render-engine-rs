@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iostream>
 #include <thread>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -18,6 +19,7 @@ Scene::Scene(int width, int height)
       height(height) {}
 
 void Scene::start_render() {
+  // auto start = std::chrono::system_clock::now();
   frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
   pos_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
   normal_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
@@ -81,6 +83,10 @@ void Scene::start_render() {
       scene.shader(scene, start_row, 0, block_row, scene.width);
     }
   };
+  // auto end = std::chrono::system_clock::now();
+  // auto duration =
+  //     std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  // std::cout << "花费了" << duration.count() << "ms\n";
   for (int i = 0; i < thread_num - 1; ++i) {
     threads.emplace_back(render_lambda, std::ref(*this),
                          thread_render_row_num * i, thread_render_row_num);

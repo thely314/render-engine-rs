@@ -119,29 +119,36 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
   box_bottom = std::clamp(box_bottom, start_row, start_row + block_row - 1);
   box_left = std::clamp(box_left, start_col, start_col + block_col - 1);
   box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
-  Eigen::Vector3f edge1 = vertexs[1].pos - vertexs[0].pos,
-                  edge2 = vertexs[2].pos - vertexs[0].pos;
-  Eigen::Vector2f uv_edge1 =
-                      vertexs[1].texture_coords - vertexs[0].texture_coords,
-                  uv_edge2 =
-                      vertexs[2].texture_coords - vertexs[0].texture_coords;
-  Eigen::Vector3f tangent =
-      (uv_edge2.y() * edge1 - uv_edge1.y() * edge2).normalized();
-  Eigen::Vector3f binormal =
-      (uv_edge1.x() * edge2 - uv_edge2.x() * edge1).normalized();
-  if (uv_edge2.y() * uv_edge1.x() - uv_edge1.y() * uv_edge2.x() <= 0) {
-    tangent = -tangent;
-    binormal = -binormal;
-  };
+  const auto &diffuse_texture = model.get_texture(Model::DIFFUSE_TEXTURE);
+  const auto &specular_texture = model.get_texture(Model::SPECULAR_TEXTURE);
+  const auto &glow_texture = model.get_texture(Model::GLOW_TEXTURE);
+  const auto &normal_texture = model.get_texture(Model::NORMAL_TEXTURE);
+  Eigen::Vector3f tangent, binormal;
+  if (normal_texture != nullptr) {
+    Eigen::Vector3f edge1 = vertexs[1].pos - vertexs[0].pos,
+                    edge2 = vertexs[2].pos - vertexs[0].pos;
+    Eigen::Vector2f uv_edge1 =
+                        vertexs[1].texture_coords - vertexs[0].texture_coords,
+                    uv_edge2 =
+                        vertexs[2].texture_coords - vertexs[0].texture_coords;
+    if (uv_edge1.x() * uv_edge2.y() - uv_edge2.x() * uv_edge1.y() > 0.0) {
+      tangent = (uv_edge2.y() * edge1 - uv_edge1.y() * edge2).normalized();
+      binormal = (uv_edge1.x() * edge2 - uv_edge2.x() * edge1).normalized();
+    } else {
+      tangent = -(uv_edge2.y() * edge1 - uv_edge1.y() * edge2).normalized();
+      binormal = -(uv_edge1.x() * edge2 - uv_edge2.x() * edge1).normalized();
+    }
+  }
   for (int y = box_bottom; y <= box_top; ++y) {
     for (int x = box_left; x <= box_right; ++x) {
       auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
           vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
           vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
       if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
-        alpha = alpha / -vertexs[0].transform_pos.w();
-        beta = beta / -vertexs[1].transform_pos.w();
-        gamma = gamma / -vertexs[2].transform_pos.w();
+        const int idx = scene.get_index(x, y);
+        alpha = alpha / vertexs[0].transform_pos.w();
+        beta = beta / vertexs[1].transform_pos.w();
+        gamma = gamma / vertexs[2].transform_pos.w();
         float w_inter = 1.0f / (alpha + beta + gamma);
         alpha *= w_inter;
         beta *= w_inter;
@@ -154,14 +161,14 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
                                       gamma * vertexs[2].transform_pos.w();
         point_transform_pos_z /= -point_transform_pos_w;
         point_transform_pos_z = (1.0f + point_transform_pos_z) * 0.5f;
-        if (point_transform_pos_z < scene.z_buffer[scene.get_index(x, y)]) {
-          scene.z_buffer[scene.get_index(x, y)] = point_transform_pos_z;
+        if (point_transform_pos_z < scene.z_buffer[idx]) {
+          scene.z_buffer[idx] = point_transform_pos_z;
           Eigen::Vector3f point_pos = alpha * vertexs[0].pos +
                                       beta * vertexs[1].pos +
                                       gamma * vertexs[2].pos;
-          scene.pos_buffer[scene.get_index(x, y)] = alpha * vertexs[0].pos +
-                                                    beta * vertexs[1].pos +
-                                                    gamma * vertexs[2].pos;
+          scene.pos_buffer[idx] = alpha * vertexs[0].pos +
+                                  beta * vertexs[1].pos +
+                                  gamma * vertexs[2].pos;
           Eigen::Vector3f point_normal =
               (alpha * vertexs[0].normal + beta * vertexs[1].normal +
                gamma * vertexs[2].normal)
@@ -169,10 +176,10 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
           Eigen::Vector2f point_uv = alpha * vertexs[0].texture_coords +
                                      beta * vertexs[1].texture_coords +
                                      gamma * vertexs[2].texture_coords;
-          if (model.get_texture(Model::NORMAL_TEXTURE) != nullptr) {
+
+          if (normal_texture != nullptr) {
             Eigen::Vector3f TBN_normal =
-                (2.0f * model.get_texture(Model::NORMAL_TEXTURE)
-                            ->get_color(point_uv.x(), point_uv.y()) -
+                (2.0f * normal_texture->get_color(point_uv.x(), point_uv.y()) -
                  Eigen::Vector3f{1.0f, 1.0f, 1.0f})
                     .normalized();
             Eigen::Vector3f tangent_orthogonal =
@@ -185,33 +192,29 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
             }
             Eigen::Matrix<float, 3, 3> TBN;
             TBN << tangent_orthogonal, binormal_orthogonal, point_normal;
-            scene.normal_buffer[scene.get_index(x, y)] =
-                (TBN * TBN_normal).normalized();
+            scene.normal_buffer[idx] = (TBN * TBN_normal).normalized();
           } else {
-            scene.normal_buffer[scene.get_index(x, y)] = point_normal;
+            scene.normal_buffer[idx] = point_normal;
           }
-          if (model.get_texture(Model::DIFFUSE_TEXTURE) != nullptr) {
-            scene.diffuse_buffer[scene.get_index(x, y)] =
-                model.get_texture(Model::DIFFUSE_TEXTURE)
-                    ->get_color(point_uv.x(), point_uv.y());
+          if (diffuse_texture != nullptr) {
+            scene.diffuse_buffer[idx] =
+                diffuse_texture->get_color(point_uv.x(), point_uv.y());
           } else {
-            scene.diffuse_buffer[scene.get_index(x, y)] =
-                alpha * vertexs[0].color + beta * vertexs[1].color +
-                gamma * vertexs[2].color;
+            scene.diffuse_buffer[idx] = alpha * vertexs[0].color +
+                                        beta * vertexs[1].color +
+                                        gamma * vertexs[2].color;
           }
-          if (model.get_texture(Model::SPECULAR_TEXTURE) != nullptr) {
-            scene.specular_buffer[scene.get_index(x, y)] =
-                model.get_texture(Model::SPECULAR_TEXTURE)
-                    ->get_color(point_uv.x(), point_uv.y());
+          if (specular_texture != nullptr) {
+            scene.specular_buffer[idx] =
+                specular_texture->get_color(point_uv.x(), point_uv.y());
           } else {
-            scene.specular_buffer[scene.get_index(x, y)] = {0.8f, 0.8f, 0.8f};
+            scene.specular_buffer[idx] = {0.8f, 0.8f, 0.8f};
           }
-          if (model.get_texture(Model::GLOW_TEXTURE) != nullptr) {
-            scene.glow_buffer[scene.get_index(x, y)] =
-                model.get_texture(Model::GLOW_TEXTURE)
-                    ->get_color(point_uv.x(), point_uv.y());
+          if (glow_texture != nullptr) {
+            scene.glow_buffer[idx] =
+                glow_texture->get_color(point_uv.x(), point_uv.y());
           } else {
-            scene.glow_buffer[scene.get_index(x, y)] = {0.0f, 0.0f, 0.0f};
+            scene.glow_buffer[idx] = {0.0f, 0.0f, 0.0f};
           }
         }
       }

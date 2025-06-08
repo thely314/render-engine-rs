@@ -15,7 +15,7 @@ Eigen::Vector3f Texture::get_color(float u, float v) {
   v *= height;
   u = std::clamp(u, 0.0f, width * 1.0f);
   v = std::clamp(v, 0.0f, height * 1.0f);
-  int center_x = round(u), center_y = round(v);
+  int center_x = roundf(u), center_y = roundf(v);
   float h_rate = u + 0.5f - center_x, v_rate = v + 0.5f - center_y;
   int idx[4]{
       get_index(std::max(0, center_x - 1), std::min(height - 1, center_y)),

@@ -3,17 +3,17 @@
 #include "Scene.hpp"
 #include "Texture.hpp"
 #include "Triangle.hpp"
+#include "global.hpp"
 #include "light.hpp"
 #include <chrono>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
-#include <format>
 #include <iostream>
 #include <memory>
 
 void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
                     int block_col) {
+
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       int idx = scene.get_index(x, y);
@@ -27,27 +27,31 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
       Eigen::Vector3f Ks = scene.specular_buffer[idx];
       Eigen::Vector3f return_color = scene.glow_buffer[idx];
       Eigen::Vector3f ambient_intensity{0.05f, 0.05f, 0.05f};
-      for (int i = 0; i != scene.lights.size(); ++i) {
+      for (auto &&light : scene.lights) {
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
         return_color += ambient;
-        float shadow_result = 1.0f;
-        if (scene.lights[i]->in_penumbra_mask(x, y)) {
-          shadow_result = scene.lights[i]->in_shadow(pos, normal, light::PCSS);
+        float visiblity;
+        if (light->in_penumbra_mask(x, y)) {
+          visiblity = light->in_shadow(pos, normal, light::PCSS);
         } else {
-          shadow_result =
-              scene.lights[i]->in_shadow(pos, normal, light::DIRECT);
+          visiblity = light->in_shadow(pos, normal, light::DIRECT);
+        }
+        if (visiblity < EPSILON) {
+          continue;
         }
         Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
-        Eigen::Vector3f light_dir =
-            scene.lights[i]->compute_world_light_dir(pos);
+        Eigen::Vector3f light_dir = light->compute_world_light_dir(pos);
         Eigen::Vector3f light_intensity =
-            scene.lights[i]->compute_world_light_intensity(pos);
+            light->compute_world_light_intensity(pos);
         Eigen::Vector3f half_dir = -(light_dir + eye_dir).normalized();
-        Eigen::Vector3f diffuse = Kd.cwiseProduct(
-            light_intensity * std::max(0.0f, normal.dot(-light_dir)));
-        Eigen::Vector3f specular = Ks.cwiseProduct(
-            light_intensity * pow(std::max(0.0f, normal.dot(half_dir)), 150));
-        return_color += (diffuse + specular) * shadow_result;
+        Eigen::Vector3f diffuse = std::max(0.0f, normal.dot(-light_dir)) *
+                                  Kd.cwiseProduct(light_intensity);
+        // 为什么一个powf函数Rust和C++能差一倍的性能
+        // 可能是Rust编译器更强
+        Eigen::Vector3f specular =
+            powf(std::max(0.0f, half_dir.dot(normal)), 150) *
+            Ks.cwiseProduct(light_intensity);
+        return_color += visiblity * (diffuse + specular);
       }
       scene.frame_buffer[idx] = return_color;
     }
@@ -111,12 +115,11 @@ int main() {
   my_scene.add_light(l2);
   my_scene.set_shader(texture_shader);
 
-  // model->modeling(  get_modeling_matrix({0, 1, 0}, 50, {0, 0, 0}));
   my_scene.start_render();
-  // my_scene.save_to_file("output.png");
+  my_scene.save_to_file("output.png");
   for (int i = 0; i != 36; ++i) {
     my_scene.start_render();
-    // my_scene.save_to_file(std::format("output{}.png", i + 1));
+    my_scene.save_to_file(std::format("output{}.png", i + 1));
     model->rotate({0, 1, 0}, 10);
   }
   auto end = std::chrono::system_clock::now();

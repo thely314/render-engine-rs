@@ -36,7 +36,7 @@ public:
   void set_scale(float rate);
   float get_scale() const;
   void set_texture(const std::shared_ptr<Texture> &texture, TEXTURES id);
-  std::shared_ptr<Texture> get_texture(TEXTURES id) const;
+  const std::shared_ptr<Texture> &get_texture(TEXTURES id) const;
   void modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix);
   void add(const std::shared_ptr<Model> &obj);
   void add(const Triangle &obj);

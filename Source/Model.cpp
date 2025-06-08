@@ -91,7 +91,7 @@ void Model::set_texture(const std::shared_ptr<Texture> &texture,
   textures[id] = texture;
 }
 
-std::shared_ptr<Texture> Model::get_texture(Model::TEXTURES id) const {
+const std::shared_ptr<Texture> &Model::get_texture(Model::TEXTURES id) const {
   return textures[id];
 }
 

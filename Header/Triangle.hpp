@@ -122,10 +122,11 @@ private:
             vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
             vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
         if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
+          int idx = get_index(x, y);
           if constexpr (IsProjection) {
-            alpha = alpha / -vertexs[0].transform_pos.w();
-            beta = beta / -vertexs[1].transform_pos.w();
-            gamma = gamma / -vertexs[2].transform_pos.w();
+            alpha = alpha / vertexs[0].transform_pos.w();
+            beta = beta / vertexs[1].transform_pos.w();
+            gamma = gamma / vertexs[2].transform_pos.w();
             float w_inter = 1.0f / (alpha + beta + gamma);
             alpha *= w_inter;
             beta *= w_inter;
@@ -139,8 +140,8 @@ private:
                                         gamma * vertexs[2].transform_pos.w();
           float depth =
               depth_transformer(point_transform_pos_z, point_transform_pos_w);
-          if (depth > z_buffer[get_index(x, y)]) {
-            z_buffer[get_index(x, y)] = depth;
+          if (depth > z_buffer[idx]) {
+            z_buffer[idx] = depth;
           }
         }
       }
