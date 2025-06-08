@@ -1,3 +1,4 @@
+#include "Model.hpp"
 #include "Scene.hpp"
 #include "global.hpp"
 #include "light.hpp"
@@ -20,7 +21,7 @@ spot_light::spot_light()
 
 Eigen::Vector3f spot_light::get_light_dir() const { return light_dir; }
 
-void spot_light::set_light_dir(const Eigen::Vector3f &dir) {
+void spot_light::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
 }
 
@@ -84,12 +85,12 @@ int spot_light::get_penumbra_mask_index(int x, int y) const {
 }
 
 Eigen::Vector3f
-spot_light::compute_world_light_dir(const Eigen::Vector3f &point_pos) const {
+spot_light::compute_world_light_dir(const Eigen::Vector3f point_pos) const {
   return (point_pos - pos).normalized();
 }
 
 Eigen::Vector3f spot_light::compute_world_light_intensity(
-    const Eigen::Vector3f &point_pos) const {
+    const Eigen::Vector3f point_pos) const {
   float distance_square = (point_pos - pos).dot(point_pos - pos);
   return intensity / distance_square;
 }
@@ -151,8 +152,8 @@ void spot_light::look_at(const Scene &scene) {
     thread.join();
   }
 }
-float spot_light::in_shadow(const Eigen::Vector3f &point_pos,
-                            const Eigen::Vector3f &normal,
+float spot_light::in_shadow(const Eigen::Vector3f point_pos,
+                            const Eigen::Vector3f normal,
                             SHADOW_METHOD shadow_method) const {
   switch (shadow_method) {
   case light::DIRECT:
@@ -172,8 +173,8 @@ bool spot_light::in_penumbra_mask(int x, int y) const {
   return true;
 }
 
-float spot_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
-                                   const Eigen::Vector3f &normal) const {
+float spot_light::in_shadow_direct(const Eigen::Vector3f point_pos,
+                                   const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -203,8 +204,8 @@ float spot_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
   }
   return 0.0f;
 }
-float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                                const Eigen::Vector3f &normal) const {
+float spot_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
+                                const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -260,8 +261,8 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
     return unshadow_num * 1.0f / spot_light_sample_num;
   }
 }
-float spot_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                 const Eigen::Vector3f &normal) const {
+float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
+                                 const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }

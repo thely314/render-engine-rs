@@ -1,11 +1,9 @@
 .cache/
 .vscode/
 exec/
-assimp_build/
-assimp_build_gcc/
-assimp-5.3.1/
+dep/
 build/
-eigen/
+lib/
 models/
 stb_image.h
 stb_image_write.h

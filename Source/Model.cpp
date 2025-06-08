@@ -31,7 +31,7 @@ void Model::load(const char *model_path, Eigen::Vector3f default_color) {
     processNode(scene->mRootNode, scene, default_color);
   }
 }
-void Model::set_pos(const Eigen::Vector3f &pos) {
+void Model::set_pos(const Eigen::Vector3f pos) {
   Eigen::Vector3f movement = pos - this->pos;
   this->pos = pos;
   Eigen::Matrix<float, 4, 4> modeling_matrix;

@@ -1,11 +1,12 @@
+#include "Model.hpp"
 #include "Scene.hpp"
 #include "global.hpp"
 #include "light.hpp"
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <functional>
 #include <thread>
+
 constexpr float directional_light_bias_scale = 10.0f;
 constexpr int directional_light_sample_num = 64;
 directional_light::directional_light()
@@ -19,7 +20,7 @@ directional_light::directional_light()
 
 Eigen::Vector3f directional_light::get_light_dir() const { return light_dir; }
 
-void directional_light::set_light_dir(const Eigen::Vector3f &dir) {
+void directional_light::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
 }
 
@@ -88,12 +89,12 @@ int directional_light::get_penumbra_mask_index(int x, int y) const {
 }
 
 Eigen::Vector3f directional_light::compute_world_light_dir(
-    const Eigen::Vector3f &point_pos) const {
+    const Eigen::Vector3f point_pos) const {
   return light_dir;
 }
 
 Eigen::Vector3f directional_light::compute_world_light_intensity(
-    const Eigen::Vector3f &point_pos) const {
+    const Eigen::Vector3f point_pos) const {
   return intensity;
 }
 
@@ -160,8 +161,8 @@ void directional_light::look_at(const Scene &scene) {
     thread.join();
   }
 }
-float directional_light::in_shadow(const Eigen::Vector3f &point_pos,
-                                   const Eigen::Vector3f &normal,
+float directional_light::in_shadow(Eigen::Vector3f point_pos,
+                                   Eigen::Vector3f normal,
                                    SHADOW_METHOD shadow_method) const {
   switch (shadow_method) {
   case light::DIRECT:
@@ -181,8 +182,8 @@ bool directional_light::in_penumbra_mask(int x, int y) const {
   return true;
 }
 
-float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
-                                          const Eigen::Vector3f &normal) const {
+float directional_light::in_shadow_direct(const Eigen::Vector3f point_pos,
+                                          const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -210,8 +211,8 @@ float directional_light::in_shadow_direct(const Eigen::Vector3f &point_pos,
   return 0.0f;
 }
 
-float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
-                                       const Eigen::Vector3f &normal) const {
+float directional_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
+                                       const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -268,8 +269,8 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f &point_pos,
   }
 }
 
-float directional_light::in_shadow_pcss(const Eigen::Vector3f &point_pos,
-                                        const Eigen::Vector3f &normal) const {
+float directional_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
+                                        const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }

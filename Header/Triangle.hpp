@@ -1,12 +1,11 @@
 #pragma once
 #include "Eigen/Core"
-#include "Scene.hpp"
-#include "light.hpp"
 #include <functional>
 #include <tuple>
 #include <vector>
 
 struct Model;
+struct Scene;
 struct Triangle_rasterization;
 struct Vertex {
   // 这三个运算符是给插值运算用的
@@ -43,12 +42,6 @@ public:
 private:
   void rasterization_block(Scene &scene, const Model &model, int start_row,
                            int start_col, int block_row, int block_col) {}
-  void rasterization_shadow_map_block(spot_light &light, int start_row,
-                                      int start_col, int block_row,
-                                      int block_col) {}
-  void rasterization_shadow_map_block(directional_light &light, int start_row,
-                                      int start_col, int block_row,
-                                      int block_col) {}
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent);
 };
@@ -98,12 +91,6 @@ public:
 private:
   void rasterization_block(Scene &scene, const Model &model, int start_row,
                            int start_col, int block_row, int block_col);
-  void rasterization_shadow_map_block(spot_light &light, int start_row,
-                                      int start_col, int block_row,
-                                      int block_col);
-  void rasterization_shadow_map_block(directional_light &light, int start_row,
-                                      int start_col, int block_row,
-                                      int block_col);
   template <bool IsProjection>
   void rasterization_shadow_map_block(
       std::vector<float> &z_buffer, int start_row, int start_col, int block_row,

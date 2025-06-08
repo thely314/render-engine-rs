@@ -1,10 +1,10 @@
 #include "Triangle.hpp"
 #include "Eigen/Core"
 #include "Model.hpp"
+#include "Scene.hpp"
+#include "Texture.hpp"
 #include "global.hpp"
-#include "light.hpp"
 #include <algorithm>
-#include <cmath>
 #include <vector>
 
 Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
@@ -13,7 +13,8 @@ Triangle::Triangle(const Vertex &v0, const Vertex &v1, const Vertex &v2)
 void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   for (auto &&v : vertexs) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
-    Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
+    Eigen::Vector3f new_normal =
+        modeling_matrix.inverse().transpose().block<3, 3>(0, 0) * v.normal;
     v.pos = new_pos.head<3>();
     v.normal = new_normal.normalized();
   }
@@ -64,7 +65,8 @@ void Triangle_rasterization::modeling(
     const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   for (auto &&v : vertexs) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
-    Eigen::Vector3f new_normal = modeling_matrix.block<3, 3>(0, 0) * v.normal;
+    Eigen::Vector3f new_normal =
+        modeling_matrix.inverse().transpose().block<3, 3>(0, 0) * v.normal;
     v.pos = new_pos.head<3>();
     v.normal = new_normal.normalized();
   }

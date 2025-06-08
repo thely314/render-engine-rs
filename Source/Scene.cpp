@@ -5,9 +5,7 @@
 #include <Scene.hpp>
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <functional>
-#include <iostream>
 #include <thread>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -128,11 +126,11 @@ void Scene::save_to_file(std::string filename) {
 
 int Scene::get_index(int x, int y) const { return width * y + x; }
 
-void Scene::set_eye_pos(const Eigen::Vector3f &eye_pos) {
+void Scene::set_eye_pos(const Eigen::Vector3f eye_pos) {
   this->eye_pos = eye_pos;
 }
 
-void Scene::set_view_dir(const Eigen::Vector3f &view_dir) {
+void Scene::set_view_dir(const Eigen::Vector3f view_dir) {
   this->view_dir = view_dir.normalized();
 }
 void Scene::set_fov(float fov) { this->fov = fov; }

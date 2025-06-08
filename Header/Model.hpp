@@ -1,17 +1,14 @@
 #pragma once
 #include "Eigen/Core"
-#include "Scene.hpp"
-#include "Texture.hpp"
 #include "Triangle.hpp"
-#include "light.hpp"
 #include <array>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <memory>
 #include <vector>
-struct Triangle;
-struct Triangle_rasterization;
+struct Scene;
+struct Texture;
 class Model {
   friend struct Triangle;
   friend struct Triangle_rasterization;
@@ -33,7 +30,7 @@ public:
         Eigen::Vector3f default_color = {0.5f, 0.5f, 0.5f});
   void load(const char *model_path,
             Eigen::Vector3f default_color = {0.5f, 0.5f, 0.5f});
-  void set_pos(const Eigen::Vector3f &pos);
+  void set_pos(const Eigen::Vector3f pos);
   Eigen::Vector3f get_pos() const;
   void rotate(Eigen::Vector3f axis, float angle);
   void set_scale(float rate);

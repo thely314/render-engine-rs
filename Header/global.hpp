@@ -7,10 +7,10 @@
 #include <vector>
 
 constexpr float EPSILON = 1e-4;
-constexpr int maximum_thread_num = 1;
+constexpr int maximum_thread_num = 8;
 inline Eigen::Matrix<float, 4, 4>
-get_modeling_matrix(const Eigen::Vector3f &axis, float angle,
-                    const Eigen::Vector3f &move) {
+get_modeling_matrix(const Eigen::Vector3f axis, float angle,
+                    const Eigen::Vector3f move) {
   angle *= M_PI / 180.f;
   float cos_val = cos(angle), sin_val = sin(angle);
   Eigen::Matrix<float, 3, 3> axis_cross;
@@ -28,8 +28,7 @@ get_modeling_matrix(const Eigen::Vector3f &axis, float angle,
   return model_matrix;
 };
 inline Eigen::Matrix<float, 4, 4>
-get_view_matrix(const Eigen::Vector3f &eye_pos,
-                const Eigen::Vector3f &view_dir) {
+get_view_matrix(const Eigen::Vector3f eye_pos, const Eigen::Vector3f view_dir) {
   Eigen::Vector3f sky_dir(0, 1, 0);
   sky_dir = (sky_dir - sky_dir.dot(view_dir) * view_dir).normalized();
   Eigen::Vector3f x_dir = view_dir.cross(sky_dir).normalized();

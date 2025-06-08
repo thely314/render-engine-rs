@@ -1,8 +1,5 @@
 #pragma once
 #include "Eigen/Core"
-#include "Model.hpp"
-#include "Triangle.hpp"
-#include "light.hpp"
 #include <functional>
 #include <memory>
 #include <string>
@@ -21,6 +18,8 @@ constexpr float gaussian_blur_vertical_offset[5] = {-3.23076923, -1.38461538, 0,
 // 而且高斯模糊的开销很大，不上mipmap效率可能还不如把mask关了，要高效率还要手写mipmap，太累
 // 毕竟我连纹理那块都没上mipmap只上了双线性插值
 // 如果真的想改我会去调OpenCV的,就算用HLSL写起码还有封好的mipmap
+struct Model;
+struct light;
 class Scene {
   friend struct Triangle;
   friend struct Triangle_rasterization;
@@ -40,8 +39,8 @@ public:
   void save_to_file(std::string filename);
   int get_index(int x, int y) const;
   int get_penumbra_mask_index(int x, int y) const;
-  void set_eye_pos(const Eigen::Vector3f &eye_pos);
-  void set_view_dir(const Eigen::Vector3f &view_dir);
+  void set_eye_pos(const Eigen::Vector3f eye_pos);
+  void set_view_dir(const Eigen::Vector3f view_dir);
   void set_fov(float fov);
   void set_aspect_ratio(float aspect_ratio);
   void set_zNear(float zNear);
