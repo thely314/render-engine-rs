@@ -4,13 +4,13 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
-use nalgebra::{max, min};
+use nalgebra::max;
 
 use crate::rasterization::light::*;
 use crate::rasterization::model::*;
 use crate::rasterization::unsafe_pack::*;
 use crate::util::math::*;
-const SCENE_MAXIMUM_THREAD_NUM: i32 = 1;
+const SCENE_MAXIMUM_THREAD_NUM: i32 = 8;
 
 pub struct Scene {
     pub(in crate::rasterization) eye_pos: Vector3f,
@@ -280,6 +280,9 @@ impl Scene {
             light.generate_penumbra_mask(unsafe { scene_ptr.get() });
             light.box_blur_penumbra_mask(box_radius);
         }
+        // let start = Instant::now();
+        // let duration = start.elapsed();
+        // println!("花费了 {}ms", duration.as_millis());
         let mut handles = Vec::with_capacity(thread_num as usize);
         for tid in 0..thread_num - 1 {
             let handle = thread::spawn(move || unsafe {

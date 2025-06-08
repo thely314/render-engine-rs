@@ -1,7 +1,6 @@
 use image::buffer;
 use nalgebra::{clamp, max, min};
 
-use crate::rasterization;
 use crate::util::math::*;
 
 use super::model::*;
@@ -160,7 +159,9 @@ impl Triangle {
     pub fn modeling(&mut self, matrix: &Matrix4f) {
         for i in 0..3 {
             self.verteies[i].pos = (matrix * homogeneous(self.verteies[i].pos)).xyz();
-            self.verteies[i].normal = matrix.fixed_view::<3, 3>(0, 0) * self.verteies[i].normal;
+            self.verteies[i].normal = (matrix.try_inverse().unwrap().transpose())
+                .fixed_view::<3, 3>(0, 0)
+                * self.verteies[i].normal;
         }
     }
 }
@@ -378,7 +379,7 @@ impl TriangleRasterization {
                         + gamma * self.verteies[2].transform_pos.w;
                     let point_transform_z = ((point_transform_z / -point_transform_w) + 1.0) * 0.5;
                     let idx = (*scene).get_index(x, y) as usize;
-                    if (point_transform_z < (*scene).z_buffer[idx]) {
+                    if point_transform_z < (*scene).z_buffer[idx] {
                         (*scene).z_buffer[idx] = point_transform_z;
                         let point_pos = alpha * self.verteies[0].pos
                             + beta * self.verteies[1].pos

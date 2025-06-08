@@ -9,7 +9,7 @@ use nalgebra::clamp;
 use nalgebra::{max, min};
 
 use super::unsafe_pack::*;
-const SPOT_LIGHT_MAXIMUM_THREAD_NUM: i32 = 1;
+const SPOT_LIGHT_MAXIMUM_THREAD_NUM: i32 = 8;
 const SPOT_LIGHT_BIAS_SCALE: f32 = 0.05;
 const SPOT_LIGHT_PCF_RADIUS: i32 = 1;
 const SPOT_LIGHT_FIBONACCI_CLUMP_EXPONENT: f32 = 1.0;

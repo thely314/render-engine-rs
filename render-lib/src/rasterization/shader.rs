@@ -1,5 +1,4 @@
 use nalgebra::clamp;
-use nalgebra::max;
 use std::f32::INFINITY;
 
 use crate::rasterization::light::*;

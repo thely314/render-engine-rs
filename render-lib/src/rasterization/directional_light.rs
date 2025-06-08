@@ -9,7 +9,7 @@ use nalgebra::clamp;
 use nalgebra::{max, min};
 
 use super::unsafe_pack::*;
-const DIRECTIONAL_LIGHT_MAXIMUM_THREAD_NUM: i32 = 1;
+const DIRECTIONAL_LIGHT_MAXIMUM_THREAD_NUM: i32 = 8;
 const DIRECTIONAL_LIGHT_BIAS_SCALE: f32 = 10.0;
 const DIRECTIONAL_LIGHT_PCF_RADIUS: i32 = 1;
 const DIRECTIONAL_LIGHT_FIBONACCI_CLUMP_EXPONENT: f32 = 1.0;
@@ -20,8 +20,8 @@ pub struct DirectionalLight {
     light_dir: Vector3f,
     view_width: f32,
     view_height: f32,
-    pub(in crate::rasterization) z_near: f32,
-    pub(in crate::rasterization) z_far: f32,
+    z_near: f32,
+    z_far: f32,
     z_buffer_width: i32,
     z_buffer_height: i32,
     penumbra_mask_width: i32,

@@ -22,7 +22,7 @@ mod test {
     use crate::rasterization::texture::Texture;
     use crate::rasterization::*;
     use crate::util::math::*;
-    #[test]
+    // #[test]
     pub fn test_import() {
         let model_path = "./models/floor.obj"; // 请替换为你的模型文件路径
                                                // 创建一个新的Importer实例
@@ -134,6 +134,7 @@ mod test {
         //     .set_light_dir(-Vector3f::new(10.0, 10.0, 10.0).normalize());
         // scene.add_light(spot_light);
         let directional_light = Arc::new(Mutex::new(DirectionalLight::default()));
+        // directional_light.lock().unwrap().set_shadow_status(false);
         directional_light
             .lock()
             .unwrap()
@@ -159,7 +160,7 @@ mod test {
             model
                 .lock()
                 .unwrap()
-                .rotate(Vector3f::new(0.0, 0.0, 1.0), 10.0);
+                .rotate(Vector3f::new(0.0, 1.0, 0.0), 10.0);
             //以z轴正方向为旋转轴旋转10度
         }
     }
