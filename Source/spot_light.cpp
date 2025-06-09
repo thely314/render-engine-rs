@@ -187,19 +187,19 @@ float spot_light::in_shadow_direct(const Eigen::Vector3f point_pos,
       transform_pos.z() > -transform_pos.w()) {
     return 0.0f;
   }
-  transform_pos.x() /= transform_pos.w();
-  transform_pos.y() /= transform_pos.w();
-  transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
-  transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  int x_to_int = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1);
-  int y_to_int = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
+  int center_x = std::clamp(int((transform_pos.x() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_width),
+                            0, zbuffer_width - 1);
+  int center_y = std::clamp(int((transform_pos.y() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_height),
+                            0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float bias =
+  const float bias =
       std::max(0.2f,
                1.0f * (1.0f - (pos - point_pos).normalized().dot(normal))) *
       spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
       pixel_radius;
-  if (transform_pos.z() + bias > z_buffer[get_index(x_to_int, y_to_int)]) {
+  if (transform_pos.z() + bias > z_buffer[get_index(center_x, center_y)]) {
     return 1.0f;
   }
   return 0.0f;
@@ -219,20 +219,20 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
       transform_pos.z() > -transform_pos.w()) {
     return 0.0f;
   }
-  transform_pos.x() /= transform_pos.w();
-  transform_pos.y() /= transform_pos.w();
-  transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
-  transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
   int unshadow_num = 0;
-  int center_x = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1),
-      center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
+  int center_x = std::clamp(int((transform_pos.x() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_width),
+                            0, zbuffer_width - 1);
+  int center_y = std::clamp(int((transform_pos.y() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_height),
+                            0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float bias =
+  const float bias =
       std::max(0.2f, 1.0f - (pos - point_pos).normalized().dot(normal)) *
       spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
       pixel_radius;
   constexpr int pcf_radius = 1;
-  if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
+  if (pcf_radius < 6 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -245,7 +245,7 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
     }
     return unshadow_num * 1.0f / ((2 * pcf_radius + 1) * (2 * pcf_radius + 1));
   } else {
-    float sample_num_inverse = 1.0f / spot_light_sample_num;
+    const float sample_num_inverse = 1.0f / spot_light_sample_num;
     for (int i = 0; i < spot_light_sample_num; ++i) {
       Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
           i, sample_num_inverse, fibonacci_clump_exponent, 0.0f);
@@ -275,16 +275,14 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
       transform_pos.z() > -transform_pos.w()) {
     return 1.0f;
   }
-  transform_pos.x() /= transform_pos.w();
-  transform_pos.y() /= transform_pos.w();
-  Eigen::Matrix<float, 2, 2> random_rotate =
-      Eigen::Matrix<float, 2, 2>::Identity();
-  transform_pos.x() = (transform_pos.x() + 1) * 0.5f * zbuffer_width;
-  transform_pos.y() = (transform_pos.y() + 1) * 0.5f * zbuffer_height;
-  int center_x = std::clamp((int)transform_pos.x(), 0, zbuffer_width - 1),
-      center_y = std::clamp((int)transform_pos.y(), 0, zbuffer_height - 1);
+  int center_x = std::clamp(int((transform_pos.x() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_width),
+                            0, zbuffer_width - 1);
+  int center_y = std::clamp(int((transform_pos.y() / transform_pos.w() + 1.0f) *
+                                0.5f * zbuffer_height),
+                            0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float bias =
+  const float bias =
       std::max(0.2f, 1.0f - (pos - point_pos).normalized().dot(normal)) *
       spot_light_bias_scale * fov_factor * -transform_pos.z() * 512.0f *
       pixel_radius;
@@ -298,7 +296,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
   // 所以pcss_radius决定了半影的面积，决定了有多少像素会参与到下面的pcf计算
   int block_num = 0;
   float block_depth = 0.0f;
-  if (pcss_radius < 2 || !enable_pcss_sample_accelerate) {
+  if (pcss_radius < 6 || !enable_pcss_sample_accelerate) {
     for (int y = -pcss_radius; y <= pcss_radius; ++y) {
       for (int x = -pcss_radius; x <= pcss_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -311,7 +309,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
       }
     }
   } else {
-    float sample_num_inverse = 1.0f / spot_light_sample_num;
+    const float sample_num_inverse = 1.0f / spot_light_sample_num;
     for (int i = 0; i < spot_light_sample_num; ++i) {
       Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
           i, sample_num_inverse, fibonacci_clump_exponent, 0.0f);
@@ -343,7 +341,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
   // 解决方法是砍pcf_radius让阴影过渡的更快，但是这会导致阴影比真实的要硬
   pcf_radius = std::max(1, pcf_radius);
   int unshadow_num = 0;
-  if (pcf_radius < 2 || !enable_pcf_sample_accelerate) {
+  if (pcf_radius < 6 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
       for (int x = -pcf_radius; x <= pcf_radius; ++x) {
         int idx_x = std::clamp(center_x + x, 0, zbuffer_width - 1);
@@ -356,7 +354,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
     }
     return unshadow_num * 1.0f / ((2 * pcf_radius + 1) * (2 * pcf_radius + 1));
   } else {
-    float sample_num_inverse = 1.0f / spot_light_sample_num;
+    const float sample_num_inverse = 1.0f / spot_light_sample_num;
     for (int i = 0; i < spot_light_sample_num; ++i) {
       Eigen::Vector2f sample_dir = compute_fibonacci_spiral_disk_sample_uniform(
           i, sample_num_inverse, fibonacci_clump_exponent, 0.0f);

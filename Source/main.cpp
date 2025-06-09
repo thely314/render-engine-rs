@@ -12,7 +12,6 @@
 
 void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
                     int block_col) {
-
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       int idx = scene.get_index(x, y);

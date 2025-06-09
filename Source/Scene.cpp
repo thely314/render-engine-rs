@@ -29,16 +29,6 @@ void Scene::start_render() {
   z_buffer.resize(width * height, INFINITY);
   std::fill(frame_buffer.begin(), frame_buffer.end(),
             Eigen::Vector3f{0.7f, 0.7f, 0.7f});
-  std::fill(pos_buffer.begin(), pos_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
-  std::fill(normal_buffer.begin(), normal_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
-  std::fill(diffuse_buffer.begin(), diffuse_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
-  std::fill(specular_buffer.begin(), specular_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
-  std::fill(glow_buffer.begin(), glow_buffer.end(),
-            Eigen::Vector3f{0.0f, 0.0f, 0.0f});
   std::fill(z_buffer.begin(), z_buffer.end(), INFINITY);
   Eigen::Matrix<float, 4, 4> model = Eigen::Matrix<float, 4, 4>::Identity(),
                              view = get_view_matrix(eye_pos, view_dir),
