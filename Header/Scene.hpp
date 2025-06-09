@@ -18,15 +18,15 @@ constexpr float gaussian_blur_vertical_offset[5] = {-3.23076923, -1.38461538, 0,
 // 而且高斯模糊的开销很大，不上mipmap效率可能还不如把mask关了，要高效率还要手写mipmap，太累
 // 毕竟我连纹理那块都没上mipmap只上了双线性插值
 // 如果真的想改我会去调OpenCV的,就算用HLSL写起码还有封好的mipmap
-struct Model;
-struct light;
+class Model;
+class light;
 class Scene {
-  friend struct Triangle;
-  friend struct Triangle_rasterization;
-  friend struct Model;
-  friend struct light;
-  friend struct spot_light;
-  friend struct directional_light;
+  friend class Triangle;
+  friend class Triangle_rasterization;
+  friend class Model;
+  friend class light;
+  friend class spot_light;
+  friend class directional_light;
 
 public:
   Scene(int width, int height);

@@ -7,15 +7,15 @@
 #include <assimp/scene.h>
 #include <memory>
 #include <vector>
-struct Scene;
-struct Texture;
+class Scene;
+class Texture;
 class Model {
-  friend struct Triangle;
-  friend struct Triangle_rasterization;
-  friend struct Scene;
-  friend struct light;
-  friend struct spot_light;
-  friend struct directional_light;
+  friend class Triangle;
+  friend class Triangle_rasterization;
+  friend class Scene;
+  friend class light;
+  friend class spot_light;
+  friend class directional_light;
 
 public:
   static constexpr int TEXTURE_NUM = 4;

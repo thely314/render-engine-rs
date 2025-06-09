@@ -1,9 +1,6 @@
 #include "Model.hpp"
 #include "Eigen/Core"
-#include "Texture.hpp"
-#include "Triangle.hpp"
 #include "global.hpp"
-#include "light.hpp"
 #include <memory>
 Model::Model() : pos({0.0f, 0.0f, 0.0f}), scale(1.0f) {}
 Model::Model(const char *model_path, Eigen::Vector3f default_color)

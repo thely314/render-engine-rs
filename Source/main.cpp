@@ -2,7 +2,6 @@
 #include "Model.hpp"
 #include "Scene.hpp"
 #include "Texture.hpp"
-#include "Triangle.hpp"
 #include "global.hpp"
 #include "light.hpp"
 #include <chrono>

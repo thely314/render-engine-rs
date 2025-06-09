@@ -4,11 +4,12 @@
 #include <tuple>
 #include <vector>
 
-struct Model;
-struct Scene;
-struct Triangle_rasterization;
-struct Vertex {
+class Model;
+class Scene;
+class Triangle_rasterization;
+class Vertex {
   // 这三个运算符是给插值运算用的
+public:
   friend Vertex operator+(const Vertex &x, const Vertex &y) {
     return Vertex{x.pos + y.pos, (x.normal + y.normal).normalized(),
                   x.color + y.color, x.texture_coords + y.texture_coords};
@@ -28,10 +29,10 @@ struct Vertex {
 };
 class Triangle {
 
-  friend struct Scene;
-  friend struct Model;
-  friend struct light;
-  friend struct spot_light;
+  friend class Scene;
+  friend class Model;
+  friend class light;
+  friend class spot_light;
 
 public:
   Triangle() = default;
@@ -46,7 +47,8 @@ private:
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent);
 };
 
-struct Vertex_rasterization {
+class Vertex_rasterization {
+public:
   // 这三个运算符是给插值运算用的
   friend Vertex_rasterization operator+(const Vertex_rasterization &x,
                                         const Vertex_rasterization &y) {
@@ -73,11 +75,11 @@ struct Vertex_rasterization {
   Eigen::Vector4f transform_pos;
 };
 class Triangle_rasterization {
-  friend struct Triangle;
-  friend struct Scene;
-  friend struct Model;
-  friend struct light;
-  friend struct spot_light;
+  friend class Triangle;
+  friend class Scene;
+  friend class Model;
+  friend class light;
+  friend class spot_light;
 
 public:
   Triangle_rasterization() = default;

@@ -52,15 +52,15 @@ inline Eigen::Vector2f compute_fibonacci_spiral_disk_sample_uniform(
          Eigen::Vector2f{fibonacci_spiral_direction[sample_index][0],
                          fibonacci_spiral_direction[sample_index][1]};
 }
-struct Vertex;
-struct Vertex_rasterization;
-struct Scene;
+class Vertex;
+class Vertex_rasterization;
+class Scene;
 class light {
-  friend struct Triangle;
-  friend struct Triangle_rasterization;
-  friend struct Model;
-  friend struct spot_light;
-  friend struct Scene;
+  friend class Triangle;
+  friend class Triangle_rasterization;
+  friend class Model;
+  friend class spot_light;
+  friend class Scene;
 
 public:
   enum SHADOW_METHOD { DIRECT, PCF, PCSS };
@@ -94,10 +94,10 @@ protected:
   Eigen::Vector3f intensity;
 };
 class spot_light : public light {
-  friend struct Triangle;
-  friend struct Triangle_rasterization;
-  friend struct Model;
-  friend struct Scene;
+  friend class Triangle;
+  friend class Triangle_rasterization;
+  friend class Model;
+  friend class Scene;
 
 public:
   spot_light();
@@ -169,10 +169,10 @@ private:
   void box_blur_penumbra_mask(int radius) override;
 };
 class directional_light : public light {
-  friend struct Triangle;
-  friend struct Triangle_rasterization;
-  friend struct Model;
-  friend struct Scene;
+  friend class Triangle;
+  friend class Triangle_rasterization;
+  friend class Model;
+  friend class Scene;
 
 public:
   directional_light();

@@ -6,6 +6,10 @@
 #include <functional>
 #include <vector>
 
+#ifdef _MSC_VER
+#define M_PI 3.14159265358979323846
+#endif
+
 constexpr float EPSILON = 1e-4;
 constexpr int maximum_thread_num = 8;
 inline Eigen::Matrix<float, 4, 4>

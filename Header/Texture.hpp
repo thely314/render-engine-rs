@@ -2,11 +2,14 @@
 #include "global.hpp"
 #include <stb_image.h>
 
-struct Texture {
+class Texture {
+public:
   Texture(const char *filename, int desire_channels = 3);
   int get_index(int x, int y);
   Eigen::Vector3f get_color(float u, float v);
   ~Texture();
+
+private:
   unsigned char *data;
   int width;
   int height;
