@@ -186,11 +186,6 @@ impl Scene {
         self.z_buffer
             .resize((self.width * self.height) as usize, INFINITY);
         self.frame_buffer.fill(Vector3f::new(0.7, 0.7, 0.7));
-        self.pos_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
-        self.normal_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
-        self.diffuse_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
-        self.specular_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
-        self.glow_buffer.fill(Vector3f::new(0.0, 0.0, 0.0));
         self.z_buffer.fill(INFINITY);
         let modeling = Matrix4f::identity();
         let view = get_view_matrix(self.eye_pos, self.view_dir);
