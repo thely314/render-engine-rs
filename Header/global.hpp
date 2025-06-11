@@ -11,7 +11,7 @@
 #endif
 
 constexpr float EPSILON = 1e-4;
-constexpr int maximum_thread_num = 8;
+constexpr int tile_size = 32;
 inline Eigen::Matrix<float, 4, 4>
 get_modeling_matrix(const Eigen::Vector3f axis, float angle,
                     const Eigen::Vector3f move) {
@@ -66,6 +66,7 @@ blur_penumbra_mask_horizontal(const std::vector<float> &input, int width,
                               int height, int radius,
                               const std::function<int(int, int)> &get_index) {
   std::vector<float> output(input.size(), 0.0f);
+#pragma omp parallel for
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
       float sum = 0.0f;
@@ -83,6 +84,7 @@ blur_penumbra_mask_vertical(const std::vector<float> &input, int width,
                             int height, int radius,
                             const std::function<int(int, int)> &get_index) {
   std::vector<float> output(input.size(), 0.0f);
+#pragma omp parallel for
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
       float sum = 0.0f;

@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
-#include <iostream>
-#include <thread>
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>
@@ -19,7 +17,6 @@ Scene::Scene(int width, int height)
       height(height) {}
 
 void Scene::start_render() {
-  // auto start = std::chrono::system_clock::now();
   frame_buffer.resize(width * height, {0.7f, 0.7f, 0.7f});
   pos_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
   normal_buffer.resize(width * height, {0.0f, 0.0f, 0.0f});
@@ -43,49 +40,28 @@ void Scene::start_render() {
     obj->clip(mvp, mv);
     obj->to_NDC(width, height);
   }
-  int thread_num = std::min(height, maximum_thread_num);
-  int thread_render_row_num = ceilf(height * 1.0f / thread_num);
-  std::vector<std::thread> threads;
-  auto rasterization_lambda = [](Scene &scene, int start_row, int block_row) {
-    for (auto &&obj : scene.objects) {
-      obj->rasterization_block(scene, *obj, start_row, 0, block_row,
-                               scene.width);
+#pragma omp parallel for
+  for (int j = 0; j < height; j += tile_size) {
+    for (int i = 0; i < width; i += tile_size) {
+      for (auto &&obj : objects) {
+        obj->rasterization_block(*this, j, i, std::min(tile_size, height - j),
+                                 std::min(tile_size, width - i));
+      }
     }
-  };
-  for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(rasterization_lambda, std::ref(*this),
-                         thread_render_row_num * i, thread_render_row_num);
   }
-  threads.emplace_back(rasterization_lambda, std::ref(*this),
-                       thread_render_row_num * (thread_num - 1),
-                       height - thread_render_row_num * (thread_num - 1));
-  for (auto &&thread : threads) {
-    thread.join();
-  }
-  threads.clear();
   int box_radius = roundf(4.0f * std::max(width, height) / 1024.0f);
   for (auto &&light : lights) {
     light->generate_penumbra_mask(*this);
     light->box_blur_penumbra_mask(box_radius);
   }
-  auto render_lambda = [](Scene &scene, int start_row, int block_row) {
-    for (auto &&obj : scene.objects) {
-      scene.shader(scene, start_row, 0, block_row, scene.width);
+#pragma omp parallel for
+  for (int j = 0; j < height; j += tile_size) {
+    for (int i = 0; i < width; i += tile_size) {
+      for (auto &&obj : objects) {
+        shader(*this, j, i, std::min(tile_size, height - j),
+               std::min(tile_size, width - i));
+      }
     }
-  };
-  // auto end = std::chrono::system_clock::now();
-  // auto duration =
-  //     std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  // std::cout << "花费了" << duration.count() << "ms\n";
-  for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(render_lambda, std::ref(*this),
-                         thread_render_row_num * i, thread_render_row_num);
-  }
-  threads.emplace_back(render_lambda, std::ref(*this),
-                       thread_render_row_num * (thread_num - 1),
-                       height - thread_render_row_num * (thread_num - 1));
-  for (auto &&thread : threads) {
-    thread.join();
   }
 }
 

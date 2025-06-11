@@ -110,11 +110,10 @@ void Model::add(const Triangle &obj) { triangles.push_back(obj); }
 
 Model::~Model() {}
 
-void Model::rasterization_block(Scene &scene, const Model &model, int start_row,
-                                int start_col, int block_row, int block_col) {
+void Model::rasterization_block(Scene &scene, int start_row, int start_col,
+                                int block_row, int block_col) {
   for (auto &&obj : sub_models) {
-    obj->rasterization_block(scene, *this, start_row, start_col, block_row,
-                             block_col);
+    obj->rasterization_block(scene, start_row, start_col, block_row, block_col);
   }
   for (auto &&obj : clip_triangles) {
     obj.rasterization_block(scene, *this, start_row, start_col, block_row,

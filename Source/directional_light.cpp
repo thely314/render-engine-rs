@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
-#include <thread>
 
 constexpr float directional_light_bias_scale = 10.0f;
 constexpr int directional_light_sample_num = 64;
@@ -121,9 +120,6 @@ void directional_light::look_at(const Scene &scene) {
   for (auto obj : scene.objects) {
     obj->to_NDC(zbuffer_width, zbuffer_height);
   }
-  int thread_num = std::min(zbuffer_height, maximum_thread_num);
-  int thread_render_row_num = ceil(zbuffer_height * 1.0 / thread_num);
-  std::vector<std::thread> threads;
   int zbuffer_width = this->zbuffer_width;
   int zbuffer_height = this->zbuffer_height;
   float z_near = zNear;
@@ -134,31 +130,16 @@ void directional_light::look_at(const Scene &scene) {
   auto depth_transformer = [z_near, z_far](float z, float w) {
     return 0.5f * (z * (z_near - z_far) + (z_near + z_far));
   };
-  auto render_lambda =
-      [](const Scene &scene, std::vector<float> &z_buffer, int start_row,
-         int start_col, int block_row, int block_col,
-         const std::function<float(float, float)> &depth_transformer,
-         const std::function<int(int, int)> &get_index) {
-        for (auto obj : scene.objects) {
-          obj->rasterization_shadow_map_block<false>(
-              z_buffer, start_row, start_col, block_row, block_col,
-              depth_transformer, get_index);
-        }
-      };
-  for (int i = 0; i < thread_num - 1; ++i) {
-    threads.emplace_back(render_lambda, std::ref(scene), std::ref(z_buffer),
-                         thread_render_row_num * i, 0, thread_render_row_num,
-                         zbuffer_width, std::ref(depth_transformer),
-                         std::ref(get_index_lambda));
-  }
-  threads.emplace_back(
-      render_lambda, std::ref(scene), std::ref(z_buffer),
-      thread_render_row_num * (thread_num - 1), 0,
-      zbuffer_height - thread_render_row_num * (thread_num - 1), zbuffer_width,
-      std::ref(depth_transformer), std::ref(get_index_lambda));
-
-  for (auto &&thread : threads) {
-    thread.join();
+#pragma omp parallel for
+  for (int j = 0; j < zbuffer_height; j += tile_size) {
+    for (int i = 0; i < zbuffer_width; i += tile_size) {
+      for (auto &&obj : scene.objects) {
+        obj->rasterization_shadow_map_block<false>(
+            z_buffer, j, i, std::min(tile_size, zbuffer_height - j),
+            std::min(tile_size, zbuffer_width - i), depth_transformer,
+            get_index_lambda);
+      }
+    }
   }
 }
 float directional_light::in_shadow(Eigen::Vector3f point_pos,
@@ -379,32 +360,17 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }
-  std::vector<std::thread> threads;
   penumbra_mask_width = ceilf(0.25f * scene.width);
   penumbra_mask_height = ceilf(0.25f * scene.height);
   penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height);
   std::fill(penumbra_mask.begin(), penumbra_mask.end(), 0.0f);
-  int penumbra_mask_thread_num =
-      std::min(penumbra_mask_height, maximum_thread_num);
-  int penumbra_mask_thread_row_num =
-      ceilf(penumbra_mask_height * 1.0f / penumbra_mask_thread_num);
-  auto penumbra_mask_lambda = [](directional_light &light, const Scene &scene,
-                                 int start_row, int block_row) {
-    light.generate_penumbra_mask_block(scene, start_row, 0, block_row,
-                                       ceilf(scene.width * 0.25f));
-  };
-  for (int i = 0; i < penumbra_mask_thread_num - 1; ++i) {
-    threads.emplace_back(penumbra_mask_lambda, std::ref(*this), std::ref(scene),
-                         penumbra_mask_thread_row_num * i,
-                         penumbra_mask_thread_row_num);
-  }
-  threads.emplace_back(
-      penumbra_mask_lambda, std::ref(*this), std::ref(scene),
-      penumbra_mask_thread_row_num * (penumbra_mask_thread_num - 1),
-      penumbra_mask_height -
-          penumbra_mask_thread_row_num * (penumbra_mask_thread_num - 1));
-  for (auto &&thread : threads) {
-    thread.join();
+#pragma omp parallel for
+  for (int j = 0; j < penumbra_mask_height; j += tile_size) {
+    for (int i = 0; i < penumbra_mask_width; i += tile_size) {
+      generate_penumbra_mask_block(
+          scene, j, i, std::min(tile_size, penumbra_mask_height - j),
+          std::min(tile_size, penumbra_mask_width - i));
+    }
   }
 }
 void directional_light::generate_penumbra_mask_block(const Scene &scene,

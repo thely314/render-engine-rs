@@ -6,7 +6,6 @@
 #include "light.hpp"
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <iostream>
 #include <memory>
 
@@ -44,8 +43,6 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
         Eigen::Vector3f half_dir = -(light_dir + eye_dir).normalized();
         Eigen::Vector3f diffuse = std::max(0.0f, normal.dot(-light_dir)) *
                                   Kd.cwiseProduct(light_intensity);
-        // 为什么一个powf函数Rust和C++能差一倍的性能
-        // 可能是Rust编译器更强
         Eigen::Vector3f specular =
             powf(std::max(0.0f, half_dir.dot(normal)), 150) *
             Ks.cwiseProduct(light_intensity);
