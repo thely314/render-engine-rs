@@ -130,7 +130,7 @@ void directional_light::look_at(const Scene &scene) {
   auto depth_transformer = [z_near, z_far](float z, float w) {
     return 0.5f * (z * (z_near - z_far) + (z_near + z_far));
   };
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (int j = 0; j < zbuffer_height; j += tile_size) {
     for (int i = 0; i < zbuffer_width; i += tile_size) {
       for (auto &&obj : scene.objects) {
@@ -364,7 +364,7 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
   penumbra_mask_height = ceilf(0.25f * scene.height);
   penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height);
   std::fill(penumbra_mask.begin(), penumbra_mask.end(), 0.0f);
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (int j = 0; j < penumbra_mask_height; j += tile_size) {
     for (int i = 0; i < penumbra_mask_width; i += tile_size) {
       generate_penumbra_mask_block(

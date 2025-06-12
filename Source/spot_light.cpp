@@ -122,7 +122,7 @@ void spot_light::look_at(const Scene &scene) {
     return zbuffer_width * y + x;
   };
   auto depth_transformer = [](float z, float w) { return w; };
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (int j = 0; j < zbuffer_height; j += tile_size) {
     for (int i = 0; i < zbuffer_width; i += tile_size) {
       for (auto &&obj : scene.objects) {

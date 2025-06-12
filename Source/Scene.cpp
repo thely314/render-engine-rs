@@ -40,7 +40,7 @@ void Scene::start_render() {
     obj->clip(mvp, mv);
     obj->to_NDC(width, height);
   }
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (int j = 0; j < height; j += tile_size) {
     for (int i = 0; i < width; i += tile_size) {
       for (auto &&obj : objects) {
@@ -54,7 +54,7 @@ void Scene::start_render() {
     light->generate_penumbra_mask(*this);
     light->box_blur_penumbra_mask(box_radius);
   }
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
   for (int j = 0; j < height; j += tile_size) {
     for (int i = 0; i < width; i += tile_size) {
       for (auto &&obj : objects) {
