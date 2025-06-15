@@ -20,8 +20,8 @@ void Triangle::modeling(const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   }
 }
 template <int N, bool isLess>
-void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
-                   std::vector<Vertex_rasterization> &output);
+void clip_verteies(const std::vector<VertexRasterization> &verteies,
+                   std::vector<VertexRasterization> &output);
 
 void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
                     const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {
@@ -36,11 +36,11 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
       return;
     }
   }
-  std::vector<Vertex_rasterization> result, buffer;
+  std::vector<VertexRasterization> result, buffer;
   result.reserve(12);
   buffer.reserve(12);
   for (int i = 0; i != 3; ++i) {
-    result.push_back(Vertex_rasterization{
+    result.push_back(VertexRasterization{
         vertexs[i].pos, vertexs[i].normal, vertexs[i].color,
         vertexs[i].texture_coords, mvp * vertexs[i].pos.homogeneous()});
   }
@@ -57,11 +57,11 @@ void Triangle::clip(const Eigen::Matrix<float, 4, 4> &mvp,
   clip_verteies<0, false>(buffer, result);
   for (int i = 0; i < (int)result.size() - 2; ++i) {
     parent.clip_triangles.push_back(
-        Triangle_rasterization(result[0], result[i + 1], result[i + 2]));
+        TriangleRasterization(result[0], result[i + 1], result[i + 2]));
   }
 }
 
-void Triangle_rasterization::modeling(
+void TriangleRasterization::modeling(
     const Eigen::Matrix<float, 4, 4> &modeling_matrix) {
   for (auto &&v : vertexs) {
     Eigen::Vector4f new_pos = modeling_matrix * v.pos.homogeneous();
@@ -72,8 +72,7 @@ void Triangle_rasterization::modeling(
   }
 }
 
-Triangle_rasterization::Triangle_rasterization(
-    const Triangle &normal_triangle) {
+TriangleRasterization::TriangleRasterization(const Triangle &normal_triangle) {
   vertexs[0] = {normal_triangle.vertexs[0].pos,
                 normal_triangle.vertexs[0].normal,
                 normal_triangle.vertexs[0].color,
@@ -91,15 +90,15 @@ Triangle_rasterization::Triangle_rasterization(
                 normal_triangle.vertexs[2].texture_coords,
                 {0.0f, 0.0f, 0.0f, 0.0f}};
 }
-Triangle_rasterization::Triangle_rasterization(const Vertex_rasterization &v0,
-                                               const Vertex_rasterization &v1,
-                                               const Vertex_rasterization &v2)
+TriangleRasterization::TriangleRasterization(const VertexRasterization &v0,
+                                             const VertexRasterization &v1,
+                                             const VertexRasterization &v2)
     : vertexs{v0, v1, v2} {}
 
-void Triangle_rasterization::rasterization_block(Scene &scene,
-                                                 const Model &model,
-                                                 int start_row, int start_col,
-                                                 int block_row, int block_col) {
+void TriangleRasterization::rasterization_block(Scene &scene,
+                                                const Model &model,
+                                                int start_row, int start_col,
+                                                int block_row, int block_col) {
   if (block_row <= 0 || block_col <= 0) {
     return;
   }
@@ -141,10 +140,10 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
   }
   for (int y = box_bottom; y <= box_top; ++y) {
     for (int x = box_left; x <= box_right; ++x) {
-      auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
+      auto [alpha, beta, gamma] = TriangleRasterization::compute_bary_coord_2D(
           vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
           vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
-      if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
+      if (TriangleRasterization::inside_triangle(alpha, beta, gamma)) {
         const int idx = scene.get_index(x, y);
         alpha = alpha / vertexs[0].transform_pos.w();
         beta = beta / vertexs[1].transform_pos.w();
@@ -222,7 +221,7 @@ void Triangle_rasterization::rasterization_block(Scene &scene,
   }
 }
 
-void Triangle_rasterization::to_NDC(int width, int height) {
+void TriangleRasterization::to_NDC(int width, int height) {
   // z不需要齐次化
   for (int i = 0; i != 3; ++i) {
     vertexs[i].transform_pos.x() /= vertexs[i].transform_pos.w();
@@ -234,7 +233,7 @@ void Triangle_rasterization::to_NDC(int width, int height) {
   }
 }
 
-std::tuple<float, float, float> Triangle_rasterization::cal_bary_coord_2D(
+std::tuple<float, float, float> TriangleRasterization::compute_bary_coord_2D(
     Eigen::Vector2f v0, Eigen::Vector2f v1, Eigen::Vector2f v2,
     Eigen::Vector2f p) {
   Eigen::Vector2f AB = v1 - v0, BC = v2 - v1;
@@ -246,13 +245,13 @@ std::tuple<float, float, float> Triangle_rasterization::cal_bary_coord_2D(
   return {alpha, 1.0f - alpha - gamma, gamma};
 }
 
-bool Triangle_rasterization::inside_triangle(float alpha, float beta,
-                                             float gamma) {
+bool TriangleRasterization::inside_triangle(float alpha, float beta,
+                                            float gamma) {
   return !(alpha < -EPSILON || beta < -EPSILON || gamma < -EPSILON);
 }
 template <int N, bool isLess>
-void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
-                   std::vector<Vertex_rasterization> &output) {
+void clip_verteies(const std::vector<VertexRasterization> &verteies,
+                   std::vector<VertexRasterization> &output) {
   if (verteies.size() < 3) {
     return;
   }
@@ -270,8 +269,8 @@ void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
   for (int i = 0; i < edge_num; ++i) {
     int left = i;
     int right = (i + 1) % edge_num;
-    const Vertex_rasterization &left_vertex = verteies[left];
-    const Vertex_rasterization &right_vertex = verteies[right];
+    const VertexRasterization &left_vertex = verteies[left];
+    const VertexRasterization &right_vertex = verteies[right];
     if (!verteies_unavailable[left] && !verteies_unavailable[right]) {
       output.push_back(left_vertex);
     } else if (!verteies_unavailable[left] || !verteies_unavailable[right]) {
@@ -285,8 +284,7 @@ void clip_verteies(const std::vector<Vertex_rasterization> &verteies,
             ((left_vertex.transform_pos[N] + left_vertex.transform_pos[3]) -
              (right_vertex.transform_pos[N] + right_vertex.transform_pos[3]));
       }
-      Vertex_rasterization new_vertex =
-          (1 - t) * left_vertex + t * right_vertex;
+      VertexRasterization new_vertex = (1 - t) * left_vertex + t * right_vertex;
       if (verteies_unavailable[left]) {
         output.push_back(new_vertex);
       } else {

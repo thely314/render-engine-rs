@@ -8,7 +8,7 @@
 
 constexpr float directional_light_bias_scale = 10.0f;
 constexpr int directional_light_sample_num = 64;
-directional_light::directional_light()
+DirectionalLight::DirectionalLight()
     : light(), light_dir(0.0f, 0.0f, -1.0f), view_width(50.0f),
       view_height(50.0f), angular_diameter(3.0f), zNear(-0.1f), zFar(-1000.0f),
       pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
@@ -17,87 +17,87 @@ directional_light::directional_light()
       enable_penumbra_mask(true), mvp(Eigen::Matrix<float, 4, 4>::Identity()),
       mv(Eigen::Matrix<float, 4, 4>::Identity()) {}
 
-Eigen::Vector3f directional_light::get_light_dir() const { return light_dir; }
+Eigen::Vector3f DirectionalLight::get_light_dir() const { return light_dir; }
 
-void directional_light::set_light_dir(const Eigen::Vector3f dir) {
+void DirectionalLight::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
 }
 
-float directional_light::get_view_width() const { return view_width; }
+float DirectionalLight::get_view_width() const { return view_width; }
 
-void directional_light::set_view_width(float view_width) {
+void DirectionalLight::set_view_width(float view_width) {
   this->view_width = view_width;
 }
 
-float directional_light::get_view_height() const { return view_height; }
+float DirectionalLight::get_view_height() const { return view_height; }
 
-void directional_light::set_view_height(float view_height) {
+void DirectionalLight::set_view_height(float view_height) {
   this->view_height = view_height;
 }
 
-float directional_light::get_zNear() const { return zNear; }
+float DirectionalLight::get_zNear() const { return zNear; }
 
-void directional_light::set_zNear(float zNear) { this->zNear = zNear; }
+void DirectionalLight::set_zNear(float zNear) { this->zNear = zNear; }
 
-float directional_light::get_zFar() const { return zFar; }
+float DirectionalLight::get_zFar() const { return zFar; }
 
-void directional_light::set_zFar(float zFar) { this->zFar = zFar; }
+void DirectionalLight::set_zFar(float zFar) { this->zFar = zFar; }
 
-int directional_light::get_width() const { return zbuffer_width; }
+int DirectionalLight::get_width() const { return zbuffer_width; }
 
-void directional_light::set_width(int width) { zbuffer_width = width; }
+void DirectionalLight::set_width(int width) { zbuffer_width = width; }
 
-int directional_light::get_height() const { return zbuffer_height; }
+int DirectionalLight::get_height() const { return zbuffer_height; }
 
-void directional_light::set_height(int height) { zbuffer_height = height; }
+void DirectionalLight::set_height(int height) { zbuffer_height = height; }
 
-bool directional_light::get_shadow_status() const { return enable_shadow; }
+bool DirectionalLight::get_shadow_status() const { return enable_shadow; }
 
-void directional_light::set_shadow_status(bool status) {
+void DirectionalLight::set_shadow_status(bool status) {
   enable_shadow = status;
 }
 
-bool directional_light::get_pcf_sample_accelerate_status() const {
+bool DirectionalLight::get_pcf_sample_accelerate_status() const {
   return enable_pcf_sample_accelerate;
 }
 
-void directional_light::set_pcf_sample_accelerate_status(bool status) {
+void DirectionalLight::set_pcf_sample_accelerate_status(bool status) {
   enable_pcf_sample_accelerate = status;
 }
 
-bool directional_light::get_pcss_sample_accelerate_status() const {
+bool DirectionalLight::get_pcss_sample_accelerate_status() const {
   return enable_pcss_sample_accelerate;
 }
 
-void directional_light::set_pcss_sample_accelerate_status(bool status) {
+void DirectionalLight::set_pcss_sample_accelerate_status(bool status) {
   enable_pcss_sample_accelerate = status;
 }
-bool directional_light::get_penumbra_mask_status() const {
+bool DirectionalLight::get_penumbra_mask_status() const {
   return enable_penumbra_mask;
 }
-void directional_light::set_penumbra_mask_status(bool status) {
+void DirectionalLight::set_penumbra_mask_status(bool status) {
   enable_penumbra_mask = status;
 }
 
-int directional_light::get_index(int x, int y) const {
+int DirectionalLight::get_index(int x, int y) const {
   return zbuffer_width * y + x;
 }
 
-int directional_light::get_penumbra_mask_index(int x, int y) const {
+int DirectionalLight::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * y + x;
 }
 
-Eigen::Vector3f directional_light::compute_world_light_dir(
+Eigen::Vector3f DirectionalLight::compute_world_light_dir(
     const Eigen::Vector3f point_pos) const {
   return light_dir;
 }
 
-Eigen::Vector3f directional_light::compute_world_light_intensity(
+Eigen::Vector3f DirectionalLight::compute_world_light_intensity(
     const Eigen::Vector3f point_pos) const {
   return intensity;
 }
 
-void directional_light::look_at(const Scene &scene) {
+void DirectionalLight::look_at(const Scene &scene) {
   if (!enable_shadow) {
     return;
   }
@@ -142,9 +142,9 @@ void directional_light::look_at(const Scene &scene) {
     }
   }
 }
-float directional_light::in_shadow(Eigen::Vector3f point_pos,
-                                   Eigen::Vector3f normal,
-                                   SHADOW_METHOD shadow_method) const {
+float DirectionalLight::in_shadow(Eigen::Vector3f point_pos,
+                                  Eigen::Vector3f normal,
+                                  SHADOW_METHOD shadow_method) const {
   switch (shadow_method) {
   case light::DIRECT:
     return in_shadow_direct(point_pos, normal);
@@ -156,15 +156,15 @@ float directional_light::in_shadow(Eigen::Vector3f point_pos,
   return 1.0f;
 }
 
-bool directional_light::in_penumbra_mask(int x, int y) const {
+bool DirectionalLight::in_penumbra_mask(int x, int y) const {
   if (enable_shadow && enable_penumbra_mask) {
     return penumbra_mask[get_penumbra_mask_index(x / 4, y / 4)] > EPSILON;
   }
   return true;
 }
 
-float directional_light::in_shadow_direct(const Eigen::Vector3f point_pos,
-                                          const Eigen::Vector3f normal) const {
+float DirectionalLight::in_shadow_direct(const Eigen::Vector3f point_pos,
+                                         const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -193,8 +193,8 @@ float directional_light::in_shadow_direct(const Eigen::Vector3f point_pos,
   return 0.0f;
 }
 
-float directional_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
-                                       const Eigen::Vector3f normal) const {
+float DirectionalLight::in_shadow_pcf(const Eigen::Vector3f point_pos,
+                                      const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -251,8 +251,8 @@ float directional_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
   }
 }
 
-float directional_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
-                                        const Eigen::Vector3f normal) const {
+float DirectionalLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
+                                       const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -356,7 +356,7 @@ float directional_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
     return unshadow_num * 1.0f / directional_light_sample_num;
   }
 }
-void directional_light::generate_penumbra_mask(const Scene &scene) {
+void DirectionalLight::generate_penumbra_mask(const Scene &scene) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }
@@ -364,7 +364,7 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
   penumbra_mask_height = ceilf(0.25f * scene.height);
   penumbra_mask.resize(penumbra_mask_width * penumbra_mask_height);
   std::fill(penumbra_mask.begin(), penumbra_mask.end(), 0.0f);
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
   for (int j = 0; j < penumbra_mask_height; j += tile_size) {
     for (int i = 0; i < penumbra_mask_width; i += tile_size) {
       generate_penumbra_mask_block(
@@ -373,11 +373,11 @@ void directional_light::generate_penumbra_mask(const Scene &scene) {
     }
   }
 }
-void directional_light::generate_penumbra_mask_block(const Scene &scene,
-                                                     int start_row,
-                                                     int start_col,
-                                                     int block_row,
-                                                     int block_col) {
+void DirectionalLight::generate_penumbra_mask_block(const Scene &scene,
+                                                    int start_row,
+                                                    int start_col,
+                                                    int block_row,
+                                                    int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       int start_x = 4 * x, start_y = 4 * y;
@@ -405,7 +405,7 @@ void directional_light::generate_penumbra_mask_block(const Scene &scene,
     }
   }
 }
-void directional_light::box_blur_penumbra_mask(int radius) {
+void DirectionalLight::box_blur_penumbra_mask(int radius) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }

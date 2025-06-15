@@ -8,10 +8,8 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
-
 void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
                     int block_col) {
-#pragma omp parallel for collapse(2)
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       int idx = scene.get_index(x, y);
@@ -37,12 +35,12 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
         if (visiblity < EPSILON) {
           continue;
         }
-        Eigen::Vector3f eye_dir = (pos - scene.get_eye_pos()).normalized();
-        Eigen::Vector3f light_dir = light->compute_world_light_dir(pos);
+        Eigen::Vector3f eye2point = (pos - scene.get_eye_pos()).normalized();
+        Eigen::Vector3f light2point = light->compute_world_light_dir(pos);
         Eigen::Vector3f light_intensity =
             light->compute_world_light_intensity(pos);
-        Eigen::Vector3f half_dir = -(light_dir + eye_dir).normalized();
-        Eigen::Vector3f diffuse = std::max(0.0f, normal.dot(-light_dir)) *
+        Eigen::Vector3f half_dir = -(light2point + eye2point).normalized();
+        Eigen::Vector3f diffuse = std::max(0.0f, normal.dot(-light2point)) *
                                   Kd.cwiseProduct(light_intensity);
         Eigen::Vector3f specular =
             powf(std::max(0.0f, half_dir.dot(normal)), 150) *
@@ -90,16 +88,16 @@ int main() {
   my_scene.set_view_dir({0, 0, -1});
   my_scene.set_zNear(-0.1f);
   my_scene.set_zFar(-100.0f);
-  // auto l1 = std::make_shared<spot_light>();
+  // auto l1 = std::make_shared<SpotLight>();
   // l1->set_pos({10, 10, 10});
   // l1->set_intensity({250, 250, 250});
   // l1->set_aspect_ratio(1.0f);
   // l1->set_light_dir((model->get_pos() - l1->get_pos()).normalized());
-  // l1->set_pcf_sample_accelerate_status(true);
-  // l1->set_pcss_sample_accelerate_status(true);
-  // l1->set_penumbra_mask_status(true);
+  // l1->set_pcf_sample_accelerate_status(false);
+  // l1->set_pcss_sample_accelerate_status(false);
+  // l1->set_penumbra_mask_status(false);
 
-  auto l2 = std::make_shared<directional_light>();
+  auto l2 = std::make_shared<DirectionalLight>();
   l2->set_pos({10, 10, 10});
   l2->set_intensity({1, 1, 1});
   l2->set_light_dir((model->get_pos() - l2->get_pos()).normalized());

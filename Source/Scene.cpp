@@ -33,9 +33,9 @@ void Scene::start_render() {
                                  fov, aspect_ratio, zNear, zFar);
   Eigen::Matrix<float, 4, 4> mvp = projection * view * model;
   Eigen::Matrix<float, 4, 4> mv = view * model;
-  for (auto &&light : lights) {
-    light->look_at(*this);
-  }
+  // for (auto &&light : lights) {
+  //   light->look_at(*this);
+  // }
   for (auto &&obj : objects) {
     obj->clip(mvp, mv);
     obj->to_NDC(width, height);
@@ -51,6 +51,7 @@ void Scene::start_render() {
   }
   int box_radius = roundf(4.0f * std::max(width, height) / 1024.0f);
   for (auto &&light : lights) {
+    light->look_at(*this);
     light->generate_penumbra_mask(*this);
     light->box_blur_penumbra_mask(box_radius);
   }
@@ -83,11 +84,12 @@ void Scene::delete_light(const std::shared_ptr<light> &light) {
 
 void Scene::save_to_file(std::string filename) {
   std::vector<unsigned char> data(width * height * 3);
+#pragma omp parallel for collapse(2) schedule(static)
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
       for (int i = 0; i != 3; ++i) {
         data[3 * (y * width + x) + i] =
-            roundf(std::clamp(frame_buffer[width * (height - y - 1) + x][i],
+            roundf(std::clamp(frame_buffer[get_index(x, height - y - 1)][i],
                               0.0f, 1.0f) *
                    255);
       }
@@ -96,7 +98,14 @@ void Scene::save_to_file(std::string filename) {
   stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
 }
 
-int Scene::get_index(int x, int y) const { return width * y + x; }
+int Scene::get_index(int x, int y) const {
+  // constexpr int tile_block_size = tile_size * tile_size;
+  // int tile_per_row = ceilf((float)width / tile_size);
+  // int tile_idx = x / tile_size + tile_per_row * (y / tile_size);
+  // int x_in_tile = x % tile_size, y_in_tile = y % tile_size;
+  // return tile_block_size * tile_idx + tile_size * y_in_tile + x_in_tile;
+  return width * y + x;
+}
 
 void Scene::set_eye_pos(const Eigen::Vector3f eye_pos) {
   this->eye_pos = eye_pos;

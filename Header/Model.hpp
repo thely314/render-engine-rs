@@ -11,11 +11,11 @@ class Scene;
 class Texture;
 class Model {
   friend class Triangle;
-  friend class Triangle_rasterization;
+  friend class TriangleRasterization;
   friend class Scene;
   friend class light;
-  friend class spot_light;
-  friend class directional_light;
+  friend class SpotLight;
+  friend class DirectionalLight;
 
 public:
   static constexpr int TEXTURE_NUM = 4;
@@ -73,7 +73,7 @@ private:
   void processMesh(aiMesh *mesh, Eigen::Vector3f default_color);
   std::vector<std::shared_ptr<Model>> sub_models;
   std::vector<Triangle> triangles;
-  std::vector<Triangle_rasterization> clip_triangles;
+  std::vector<TriangleRasterization> clip_triangles;
   Eigen::Vector3f pos;
   float scale;
   std::array<std::shared_ptr<Texture>, TEXTURE_NUM> textures{};

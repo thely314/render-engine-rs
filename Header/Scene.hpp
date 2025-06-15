@@ -22,11 +22,11 @@ class Model;
 class light;
 class Scene {
   friend class Triangle;
-  friend class Triangle_rasterization;
+  friend class TriangleRasterization;
   friend class Model;
   friend class light;
-  friend class spot_light;
-  friend class directional_light;
+  friend class SpotLight;
+  friend class DirectionalLight;
 
 public:
   Scene(int width, int height);

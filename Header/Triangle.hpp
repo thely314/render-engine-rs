@@ -6,7 +6,7 @@
 
 class Model;
 class Scene;
-class Triangle_rasterization;
+class TriangleRasterization;
 class Vertex {
   // 这三个运算符是给插值运算用的
 public:
@@ -32,7 +32,7 @@ class Triangle {
   friend class Scene;
   friend class Model;
   friend class light;
-  friend class spot_light;
+  friend class SpotLight;
 
 public:
   Triangle() = default;
@@ -47,26 +47,24 @@ private:
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent);
 };
 
-class Vertex_rasterization {
+class VertexRasterization {
 public:
   // 这三个运算符是给插值运算用的
-  friend Vertex_rasterization operator+(const Vertex_rasterization &x,
-                                        const Vertex_rasterization &y) {
-    return Vertex_rasterization{
+  friend VertexRasterization operator+(const VertexRasterization &x,
+                                       const VertexRasterization &y) {
+    return VertexRasterization{
         x.pos + y.pos, (x.normal + y.normal).normalized(), x.color + y.color,
         x.texture_coords + y.texture_coords, x.transform_pos + y.transform_pos};
   }
-  friend Vertex_rasterization operator*(float rate,
-                                        const Vertex_rasterization &v) {
-    return Vertex_rasterization{rate * v.pos, rate * v.normal, rate * v.color,
-                                rate * v.texture_coords,
-                                rate * v.transform_pos};
+  friend VertexRasterization operator*(float rate,
+                                       const VertexRasterization &v) {
+    return VertexRasterization{rate * v.pos, rate * v.normal, rate * v.color,
+                               rate * v.texture_coords, rate * v.transform_pos};
   }
-  friend Vertex_rasterization operator*(const Vertex_rasterization &v,
-                                        float rate) {
-    return Vertex_rasterization{rate * v.pos, rate * v.normal, rate * v.color,
-                                rate * v.texture_coords,
-                                rate * v.transform_pos};
+  friend VertexRasterization operator*(const VertexRasterization &v,
+                                       float rate) {
+    return VertexRasterization{rate * v.pos, rate * v.normal, rate * v.color,
+                               rate * v.texture_coords, rate * v.transform_pos};
   }
   Eigen::Vector3f pos;
   Eigen::Vector3f normal;
@@ -74,21 +72,21 @@ public:
   Eigen::Vector2f texture_coords;
   Eigen::Vector4f transform_pos;
 };
-class Triangle_rasterization {
+class TriangleRasterization {
   friend class Triangle;
   friend class Scene;
   friend class Model;
   friend class light;
-  friend class spot_light;
+  friend class SpotLight;
 
 public:
-  Triangle_rasterization() = default;
-  Triangle_rasterization(const Triangle &normal_triangle);
-  Triangle_rasterization(const Vertex_rasterization &v0,
-                         const Vertex_rasterization &v1,
-                         const Vertex_rasterization &v2);
+  TriangleRasterization() = default;
+  TriangleRasterization(const Triangle &normal_triangle);
+  TriangleRasterization(const VertexRasterization &v0,
+                        const VertexRasterization &v1,
+                        const VertexRasterization &v2);
   void modeling(const Eigen::Matrix<float, 4, 4> &modeling_martix);
-  Vertex_rasterization vertexs[3];
+  VertexRasterization vertexs[3];
 
 private:
   void rasterization_block(Scene &scene, const Model &model, int start_row,
@@ -120,10 +118,12 @@ private:
     box_right = std::clamp(box_right, start_col, start_col + block_col - 1);
     for (int y = box_bottom; y <= box_top; ++y) {
       for (int x = box_left; x <= box_right; ++x) {
-        auto [alpha, beta, gamma] = Triangle_rasterization::cal_bary_coord_2D(
-            vertexs[0].transform_pos.head(2), vertexs[1].transform_pos.head(2),
-            vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
-        if (Triangle_rasterization::inside_triangle(alpha, beta, gamma)) {
+        auto [alpha, beta, gamma] =
+            TriangleRasterization::compute_bary_coord_2D(
+                vertexs[0].transform_pos.head(2),
+                vertexs[1].transform_pos.head(2),
+                vertexs[2].transform_pos.head(2), {x + 0.5f, y + 0.5f});
+        if (TriangleRasterization::inside_triangle(alpha, beta, gamma)) {
           int idx = get_index(x, y);
           if constexpr (IsProjection) {
             alpha = alpha / vertexs[0].transform_pos.w();
@@ -152,9 +152,8 @@ private:
   void to_NDC(int width, int height);
   void clip(const Eigen::Matrix<float, 4, 4> &mvp,
             const Eigen::Matrix<float, 4, 4> &mv, Model &parent) {}
-  static std::tuple<float, float, float> cal_bary_coord_2D(Eigen::Vector2f v0,
-                                                           Eigen::Vector2f v1,
-                                                           Eigen::Vector2f v2,
-                                                           Eigen::Vector2f p);
+  static std::tuple<float, float, float>
+  compute_bary_coord_2D(Eigen::Vector2f v0, Eigen::Vector2f v1,
+                        Eigen::Vector2f v2, Eigen::Vector2f p);
   static bool inside_triangle(float alpha, float beta, float gamma);
 };

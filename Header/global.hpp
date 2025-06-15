@@ -66,7 +66,7 @@ blur_penumbra_mask_horizontal(const std::vector<float> &input, int width,
                               int height, int radius,
                               const std::function<int(int, int)> &get_index) {
   std::vector<float> output(input.size(), 0.0f);
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
       float sum = 0.0f;
@@ -84,7 +84,7 @@ blur_penumbra_mask_vertical(const std::vector<float> &input, int width,
                             int height, int radius,
                             const std::function<int(int, int)> &get_index) {
   std::vector<float> output(input.size(), 0.0f);
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
   for (int y = 0; y != height; ++y) {
     for (int x = 0; x != width; ++x) {
       float sum = 0.0f;

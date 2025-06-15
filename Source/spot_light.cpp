@@ -9,7 +9,7 @@
 
 constexpr float spot_light_bias_scale = 0.05f; // 经验值
 constexpr int spot_light_sample_num = 64;
-spot_light::spot_light()
+SpotLight::SpotLight()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
       pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
@@ -18,83 +18,83 @@ spot_light::spot_light()
       enable_penumbra_mask(true), mvp(Eigen::Matrix<float, 4, 4>::Identity()),
       mv(Eigen::Matrix<float, 4, 4>::Identity()) {}
 
-Eigen::Vector3f spot_light::get_light_dir() const { return light_dir; }
+Eigen::Vector3f SpotLight::get_light_dir() const { return light_dir; }
 
-void spot_light::set_light_dir(const Eigen::Vector3f dir) {
+void SpotLight::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
 }
 
-float spot_light::get_fov() const { return fov; }
+float SpotLight::get_fov() const { return fov; }
 
-void spot_light::set_fov(float fov) { this->fov = fov; }
+void SpotLight::set_fov(float fov) { this->fov = fov; }
 
-float spot_light::get_aspect_ratio() const { return aspect_ratio; }
+float SpotLight::get_aspect_ratio() const { return aspect_ratio; }
 
-void spot_light::set_aspect_ratio(float aspect_ratio) {
+void SpotLight::set_aspect_ratio(float aspect_ratio) {
   this->aspect_ratio = aspect_ratio;
 }
 
-float spot_light::get_zNear() const { return zNear; }
+float SpotLight::get_zNear() const { return zNear; }
 
-void spot_light::set_zNear(float zNear) { this->zNear = zNear; }
+void SpotLight::set_zNear(float zNear) { this->zNear = zNear; }
 
-float spot_light::get_zFar() const { return zFar; }
+float SpotLight::get_zFar() const { return zFar; }
 
-void spot_light::set_zFar(float zFar) { this->zFar = zFar; }
+void SpotLight::set_zFar(float zFar) { this->zFar = zFar; }
 
-int spot_light::get_width() const { return zbuffer_width; }
+int SpotLight::get_width() const { return zbuffer_width; }
 
-void spot_light::set_width(int width) { zbuffer_width = width; }
+void SpotLight::set_width(int width) { zbuffer_width = width; }
 
-int spot_light::get_height() const { return zbuffer_height; }
+int SpotLight::get_height() const { return zbuffer_height; }
 
-void spot_light::set_height(int height) { zbuffer_height = height; }
+void SpotLight::set_height(int height) { zbuffer_height = height; }
 
-bool spot_light::get_shadow_status() const { return enable_shadow; }
+bool SpotLight::get_shadow_status() const { return enable_shadow; }
 
-void spot_light::set_shadow_status(bool status) { enable_shadow = status; }
+void SpotLight::set_shadow_status(bool status) { enable_shadow = status; }
 
-bool spot_light::get_pcf_sample_accelerate_status() const {
+bool SpotLight::get_pcf_sample_accelerate_status() const {
   return enable_pcf_sample_accelerate;
 }
 
-void spot_light::set_pcf_sample_accelerate_status(bool status) {
+void SpotLight::set_pcf_sample_accelerate_status(bool status) {
   enable_pcf_sample_accelerate = status;
 }
 
-bool spot_light::get_pcss_sample_accelerate_status() const {
+bool SpotLight::get_pcss_sample_accelerate_status() const {
   return enable_pcss_sample_accelerate;
 }
 
-void spot_light::set_pcss_sample_accelerate_status(bool status) {
+void SpotLight::set_pcss_sample_accelerate_status(bool status) {
   enable_pcss_sample_accelerate = status;
 }
 
-bool spot_light::get_penumbra_mask_status() const {
+bool SpotLight::get_penumbra_mask_status() const {
   return enable_penumbra_mask;
 }
-void spot_light::set_penumbra_mask_status(bool status) {
+void SpotLight::set_penumbra_mask_status(bool status) {
   enable_penumbra_mask = status;
 }
 
-int spot_light::get_index(int x, int y) const { return zbuffer_width * y + x; }
+int SpotLight::get_index(int x, int y) const { return zbuffer_width * y + x; }
 
-int spot_light::get_penumbra_mask_index(int x, int y) const {
+int SpotLight::get_penumbra_mask_index(int x, int y) const {
   return penumbra_mask_width * y + x;
 }
 
 Eigen::Vector3f
-spot_light::compute_world_light_dir(const Eigen::Vector3f point_pos) const {
+SpotLight::compute_world_light_dir(const Eigen::Vector3f point_pos) const {
   return (point_pos - pos).normalized();
 }
 
-Eigen::Vector3f spot_light::compute_world_light_intensity(
+Eigen::Vector3f SpotLight::compute_world_light_intensity(
     const Eigen::Vector3f point_pos) const {
   float distance_square = (point_pos - pos).dot(point_pos - pos);
   return intensity / distance_square;
 }
 
-void spot_light::look_at(const Scene &scene) {
+void SpotLight::look_at(const Scene &scene) {
   if (!enable_shadow) {
     return;
   }
@@ -122,7 +122,7 @@ void spot_light::look_at(const Scene &scene) {
     return zbuffer_width * y + x;
   };
   auto depth_transformer = [](float z, float w) { return w; };
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
   for (int j = 0; j < zbuffer_height; j += tile_size) {
     for (int i = 0; i < zbuffer_width; i += tile_size) {
       for (auto &&obj : scene.objects) {
@@ -134,9 +134,9 @@ void spot_light::look_at(const Scene &scene) {
     }
   }
 }
-float spot_light::in_shadow(const Eigen::Vector3f point_pos,
-                            const Eigen::Vector3f normal,
-                            SHADOW_METHOD shadow_method) const {
+float SpotLight::in_shadow(const Eigen::Vector3f point_pos,
+                           const Eigen::Vector3f normal,
+                           SHADOW_METHOD shadow_method) const {
   switch (shadow_method) {
   case light::DIRECT:
     return in_shadow_direct(point_pos, normal);
@@ -148,15 +148,15 @@ float spot_light::in_shadow(const Eigen::Vector3f point_pos,
   return 1.0f;
 }
 
-bool spot_light::in_penumbra_mask(int x, int y) const {
+bool SpotLight::in_penumbra_mask(int x, int y) const {
   if (enable_shadow && enable_penumbra_mask) {
     return penumbra_mask[get_penumbra_mask_index(x / 4, y / 4)] > EPSILON;
   }
   return true;
 }
 
-float spot_light::in_shadow_direct(const Eigen::Vector3f point_pos,
-                                   const Eigen::Vector3f normal) const {
+float SpotLight::in_shadow_direct(const Eigen::Vector3f point_pos,
+                                  const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -186,8 +186,8 @@ float spot_light::in_shadow_direct(const Eigen::Vector3f point_pos,
   }
   return 0.0f;
 }
-float spot_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
-                                const Eigen::Vector3f normal) const {
+float SpotLight::in_shadow_pcf(const Eigen::Vector3f point_pos,
+                               const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -243,8 +243,8 @@ float spot_light::in_shadow_pcf(const Eigen::Vector3f point_pos,
     return unshadow_num * 1.0f / spot_light_sample_num;
   }
 }
-float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
-                                 const Eigen::Vector3f normal) const {
+float SpotLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
+                                const Eigen::Vector3f normal) const {
   if (!enable_shadow) {
     return 1.0f;
   }
@@ -352,7 +352,7 @@ float spot_light::in_shadow_pcss(const Eigen::Vector3f point_pos,
     return unshadow_num * 1.0f / spot_light_sample_num;
   }
 }
-void spot_light::generate_penumbra_mask(const Scene &scene) {
+void SpotLight::generate_penumbra_mask(const Scene &scene) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }
@@ -369,9 +369,9 @@ void spot_light::generate_penumbra_mask(const Scene &scene) {
     }
   }
 }
-void spot_light::generate_penumbra_mask_block(const Scene &scene, int start_row,
-                                              int start_col, int block_row,
-                                              int block_col) {
+void SpotLight::generate_penumbra_mask_block(const Scene &scene, int start_row,
+                                             int start_col, int block_row,
+                                             int block_col) {
   for (int y = start_row; y < start_row + block_row; ++y) {
     for (int x = start_col; x < start_col + block_col; ++x) {
       int start_x = 4 * x, start_y = 4 * y;
@@ -399,7 +399,7 @@ void spot_light::generate_penumbra_mask_block(const Scene &scene, int start_row,
     }
   }
 }
-void spot_light::box_blur_penumbra_mask(int radius) {
+void SpotLight::box_blur_penumbra_mask(int radius) {
   if (!enable_shadow || !enable_penumbra_mask) {
     return;
   }

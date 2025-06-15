@@ -57,9 +57,8 @@ class Vertex_rasterization;
 class Scene;
 class light {
   friend class Triangle;
-  friend class Triangle_rasterization;
+  friend class TriangleRasterization;
   friend class Model;
-  friend class spot_light;
   friend class Scene;
 
 public:
@@ -93,14 +92,14 @@ protected:
   Eigen::Vector3f pos;
   Eigen::Vector3f intensity;
 };
-class spot_light : public light {
+class SpotLight : public light {
   friend class Triangle;
-  friend class Triangle_rasterization;
+  friend class TriangleRasterization;
   friend class Model;
   friend class Scene;
 
 public:
-  spot_light();
+  SpotLight();
   Eigen::Vector3f get_light_dir() const;
   void set_light_dir(const Eigen::Vector3f dir);
   float get_fov() const;
@@ -168,14 +167,14 @@ private:
                                     int block_col);
   void box_blur_penumbra_mask(int radius) override;
 };
-class directional_light : public light {
+class DirectionalLight : public light {
   friend class Triangle;
-  friend class Triangle_rasterization;
+  friend class TriangleRasterization;
   friend class Model;
   friend class Scene;
 
 public:
-  directional_light();
+  DirectionalLight();
   Eigen::Vector3f get_light_dir() const;
   void set_light_dir(const Eigen::Vector3f dir);
   float get_view_width() const;
