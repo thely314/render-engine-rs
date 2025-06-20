@@ -34,6 +34,10 @@ export component MainWindow inherits AppWindow {
 
     callback main-window-resize(string);
 
+    callback send-key-pressed(event: KeyEvent);
+    callback send-key-released(event: KeyEvent);
+    callback send-moved(mouse-x: length, mouse-y: length);
+
     resize(e) => {
         main-window-resize(e);
     }
@@ -43,11 +47,57 @@ export component MainWindow inherits AppWindow {
         padding: 0;
         spacing: 0;
 
-        Image {
-            // 绑定到像素缓冲区
-            source: render-target;
+        key-handler := FocusScope {
             min-width: 700px;
             min-height: 600px;
+    
+            area := TouchArea {
+                min-width: 700px;
+                min-height: 600px;
+                image-area := Image {
+                    // 绑定到像素缓冲区
+                    source: render-target;
+                    min-width: 700px;
+                    min-height: 600px;
+                }
+                moved => {
+                    debug("Mouse drag moved(view moved): ", self.mouse-x, ", ", self.mouse-y);
+                    send-moved(self.mouse-x, self.mouse-y);
+                    key-handler.focus();
+                }
+                clicked => {
+                    key-handler.focus();
+                }
+            }
+
+            key-pressed(event) => {
+                debug("Key pressed: ", event.text);
+                debug("Key modifier: ", event.modifiers);
+                if (event.text == "w") {
+                    debug("W key pressed, camera moving up");
+                }
+                if (event.text == "a") {
+                    debug("A key pressed, camera moving left");
+                }
+                if (event.text == "s") {
+                    debug("S key pressed, camera moving down");
+                }
+                if (event.text == "d") {
+                    debug("D key pressed, camera moving right");
+                }
+                if (event.text == "q") {
+                    debug("Q key pressed, zoom in")
+                }
+                if (event.text == "e") {
+                    debug("E key pressed, zoom out")
+                }
+                send-key-pressed(event);
+                accept
+            }
+            key-released(event) => {
+                send-key-released(event);
+                accept
+            }
         }
 
         VerticalLayout {
