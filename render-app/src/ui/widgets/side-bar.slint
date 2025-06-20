@@ -1,0 +1,54 @@
+/*
+The Side bar at the cornor of the window.
+used for switching between pages.
+*/
+
+import { UiState } from "../mod/global.slint";
+import { Button } from "std-widgets.slint";
+
+export component SideBar inherits Rectangle {
+    background: Colors.transparent;
+    clip: true;
+
+    HorizontalLayout {
+        spacing: 0;
+        padding: 0;
+        height: 50px;
+        max-width: 300px;
+
+        AddButton := Rectangle {
+            background: #6d99fe;
+            border-color: transparent;
+            height: 50px;
+
+            Button {
+                text: "Add Light";
+                width: 100%;
+                height: 100%;
+
+                clicked => {
+                    UiState.page = "add";
+                    AddButton.background = #6d99fe;
+                    ManageButton.background = Colors.transparent;
+                }
+            }
+        }
+        ManageButton := Rectangle {
+            background: transparent;
+            border-color: transparent;
+            height: 50px;
+
+            Button {
+                text: "Manage Lights";
+                width: 100%;
+                height: 100%;
+
+                clicked => {
+                    UiState.page = "manage";
+                    ManageButton.background = #6d99fe;
+                    AddButton.background = Colors.transparent;
+                }
+            }
+        }
+    }
+}

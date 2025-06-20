@@ -1,0 +1,60 @@
+/*
+The global style for the application.
+*/
+
+// import { Palette } from "std-widgets.slint";
+
+export struct Brush {
+    window-bg: color,
+    button-bg: color,
+    button-bg-hover: color,
+    element-bg: color,
+
+    window-border: color,
+    button-border: color,
+    element-border: color,
+}
+
+export struct Sizes {
+    xs: length,
+    sm: length,
+    md: length,
+    lg: length,
+    xl: length,
+}
+
+export struct Durations {
+    short: duration,
+    mid: duration,
+    long: duration,
+}
+
+export global Styles {
+    out property <Brush> light-theme: {
+        window-bg: Colors.white,
+        button-bg: Colors.lightgray,
+        button-bg-hover: Colors.lightblue,
+        element-bg: #6d99fe,
+
+        window-border: Colors.lightblue,
+        button-border: Colors.black,
+        element-border: Colors.white,
+
+        lightType-point: Colors.red,
+        lightType-directional: Colors.yellowgreen,
+    };
+
+    out property <Sizes> sizes: {
+        xs: 2px,
+        sm: 4px,
+        md: 8px,
+        lg: 20px,
+        xl: 32px,
+    };
+
+    out property <Durations> durations: {
+        short: 100ms,
+        mid: 200ms,
+        long: 300ms,
+    };
+}

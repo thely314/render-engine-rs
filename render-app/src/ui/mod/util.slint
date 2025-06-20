@@ -1,0 +1,24 @@
+/*
+Export object or class
+*/
+
+export struct Light {
+    name: string,
+    // "Point", "Directional"
+    type: string,
+    position-x: float,
+    position-y: float,
+    position-z: float,
+    color-R: int,
+    color-G: int,
+    color-B: int,
+    forward-x: float,
+    forward-y: float,
+    forward-z: float,
+}
+
+export global LightManage {
+    callback add_light(lt: Light);
+    callback del_light(name: string);
+    in-out property <[Light]> lights;
+}
