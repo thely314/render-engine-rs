@@ -26,6 +26,11 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
       for (auto &&light : scene.lights) {
         Eigen::Vector3f ambient = Ka.cwiseProduct(ambient_intensity);
         return_color += ambient;
+        Eigen::Vector3f light2point = light->compute_world_light_dir(pos);
+        float cos_normal_lightdir = normal.dot(-light2point);
+        if (cos_normal_lightdir < EPSILON) {
+          continue;
+        }
         float visiblity;
         if (light->in_penumbra_mask(x, y)) {
           visiblity = light->in_shadow(pos, normal, light::PCSS);
@@ -36,12 +41,11 @@ void texture_shader(Scene &scene, int start_row, int start_col, int block_row,
           continue;
         }
         Eigen::Vector3f eye2point = (pos - scene.get_eye_pos()).normalized();
-        Eigen::Vector3f light2point = light->compute_world_light_dir(pos);
         Eigen::Vector3f light_intensity =
             light->compute_world_light_intensity(pos);
         Eigen::Vector3f half_dir = -(light2point + eye2point).normalized();
-        Eigen::Vector3f diffuse = std::max(0.0f, normal.dot(-light2point)) *
-                                  Kd.cwiseProduct(light_intensity);
+        Eigen::Vector3f diffuse =
+            cos_normal_lightdir * Kd.cwiseProduct(light_intensity);
         Eigen::Vector3f specular =
             powf(std::max(0.0f, half_dir.dot(normal)), 150) *
             Ks.cwiseProduct(light_intensity);
