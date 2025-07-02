@@ -6,7 +6,6 @@
 #include <cmath>
 #include <functional>
 
-constexpr float directional_light_bias_scale = 10.0f;
 constexpr int directional_light_sample_num = 64;
 DirectionalLight::DirectionalLight()
     : light(), light_dir(0.0f, 0.0f, -1.0f), view_width(50.0f),
@@ -184,9 +183,9 @@ float DirectionalLight::in_shadow_direct(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  const float bias = directional_light_bias_scale *
-                     std::max(0.2f, 1.0f - light_dir.dot(-normal)) *
-                     pixel_radius;
+  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
+  const float bias =
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius);
   if (transform_pos.z() + bias > z_buffer[get_index(center_x, center_y)]) {
     return 1.0f;
   }
@@ -217,9 +216,9 @@ float DirectionalLight::in_shadow_pcf(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  const float bias = directional_light_bias_scale *
-                     std::max(0.2f, 1.0f - light_dir.dot(-normal)) *
-                     pixel_radius;
+  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
+  const float bias =
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius);
   constexpr int pcf_radius = 1;
   if (pcf_radius < 6 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -272,9 +271,9 @@ float DirectionalLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  const float bias = directional_light_bias_scale *
-                     std::max(0.2f, 1.0f - light_dir.dot(-normal)) *
-                     pixel_radius;
+  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
+  const float bias =
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius);
   float light_size_div_distance = 2.0f * tan(angular_diameter / 360.0f * M_PI);
   int pcss_radius =
       std::max(1.0f, 2.5f * light_size_div_distance / pixel_radius);

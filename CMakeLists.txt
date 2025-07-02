@@ -21,10 +21,7 @@ set(MKL_LIBS
 )
 set(OpenMP_LIB "C:/Program Files (x86)/Intel/oneAPI/compiler/2025.1/lib/libiomp5md.lib")
 add_definitions(-DEIGEN_USE_MKL_ALL)
-# set(ASSIMP_STATIC_LIBRARY ${CMAKE_SOURCE_DIR}/lib/gcc/libassimp.dll.a)
-# set(ASSIMP_SHARED_LIBRARY ${CMAKE_SOURCE_DIR}/lib/gcc/libassimp-5.dll)  
-set(ASSIMP_SHARED_LIBRARY ${CMAKE_SOURCE_DIR}/lib/clang/assimp.lib)  
-set(MIMALLOC_SHARED_LIBRARY ${CMAKE_SOURCE_DIR}/lib/clang/mimalloc.dll.lib)  
+set(ASSIMP_SHARED_LIBRARY ${CMAKE_SOURCE_DIR}/lib/clang/assimp.lib)
 
 set(HEADER ${CMAKE_SOURCE_DIR}/Header)
 file(GLOB SOURCE ${CMAKE_SOURCE_DIR}/Source/*.cpp)
@@ -35,5 +32,5 @@ target_compile_options(${PROJECT_NAME} PUBLIC -fopenmp -O3 -march=native -Xclang
  -D_ITERATOR_DEBUG_LEVEL=0 -D_HAS_ITERATOR_DEBUGGING=0
 )
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/exec)
-target_link_libraries(${PROJECT_NAME} PUBLIC ${ASSIMP_SHARED_LIBRARY} PUBLIC ${MKL_LIBS} PUBLIC ${OpenMP_LIB} PUBLIC ${MIMALLOC_SHARED_LIBRARY})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${ASSIMP_SHARED_LIBRARY} PUBLIC ${MKL_LIBS} PUBLIC ${OpenMP_LIB})
 target_include_directories(${PROJECT_NAME} PUBLIC ${DEPS} PUBLIC ${HEADER})
