@@ -6,6 +6,10 @@ pub mod rasterization;
 
 pub mod util;
 
+/// Re-export the assimp module for easier access
+pub use assimp;
+pub use nalgebra;
+
 #[cfg(test)]
 mod test {
     use std::env::current_dir;
@@ -22,7 +26,7 @@ mod test {
     use crate::rasterization::texture::Texture;
     use crate::rasterization::*;
     use crate::util::math::*;
-    // #[test]
+    #[test]
     pub fn test_import() {
         let model_path = "./models/floor.obj"; // 请替换为你的模型文件路径
                                                // 创建一个新的Importer实例

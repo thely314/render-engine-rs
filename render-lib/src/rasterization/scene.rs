@@ -331,4 +331,8 @@ impl Scene {
         img.save(path)?;
         Ok(())
     }
+
+    pub fn get_frame_buffer(&self) -> &Vec<Vector3f> {
+        &self.frame_buffer
+    }
 }

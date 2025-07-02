@@ -1,0 +1,2 @@
+[env]
+CXXFLAGS = "/utf-8"

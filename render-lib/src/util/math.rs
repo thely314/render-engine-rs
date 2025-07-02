@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
-use nalgebra::{clamp, Matrix};
+pub use nalgebra::clamp;
+use nalgebra::Matrix;
 
 pub const EPSILON: f32 = 1e-4;
 pub type Vector2f = nalgebra::Vector2<f32>;
