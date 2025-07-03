@@ -2,11 +2,13 @@
 Page to manage the lights, including delete lights.
 */
 
+import { Button } from "std-widgets.slint";
 import { Light, LightManage } from "../mod/util.slint";
 import { Styles } from "../mod/style.slint";
 
 export component ManageLightPage inherits Rectangle {
     // background: transparent;
+    callback load_model();
 
     VerticalLayout {
         alignment: center;
@@ -26,12 +28,12 @@ export component ManageLightPage inherits Rectangle {
                             font-weight: 400;
                         }
                         Text {
-                            text: light-obj.type;
+                            text: light-obj.light_type;
                             font-size: Styles.sizes.md;
                             font-weight: 400;
                             // FIXME: bug that could not find the color style
-                            // color: light-obj.type == "Point" ? Styles.light-theme.lightType-point : Styles.light-theme.lightType-directional;
-                            color: light-obj.type == "Point" ? Colors.red : Colors.yellowgreen;
+                            // color: light-obj.type == "Spot" ? Styles.light-theme.lightType-point : Styles.light-theme.lightType-directional;
+                            color: light-obj.light_type == "Spot" ? Colors.red : Colors.yellowgreen;
                         }
                     }
 
@@ -85,6 +87,12 @@ export component ManageLightPage inherits Rectangle {
                             text: "Z-forward: " + light-obj.position-z;
                         }
                     }
+                    delete-button := Button {
+                        text: "删除";
+                        clicked => {
+                            LightManage.del_light(light-obj);
+                        }
+                    }
                 }
             }
 
@@ -95,6 +103,13 @@ export component ManageLightPage inherits Rectangle {
         }
         Rectangle {
             vertical-stretch: 1;
+        }
+        Button {
+            text: "load new model";
+            width: 80%;
+            clicked => {
+                load_model();
+            }
         }
     }
 }

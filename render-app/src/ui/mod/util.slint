@@ -4,21 +4,21 @@ Export object or class
 
 export struct Light {
     name: string,
-    // "Point", "Directional"
-    type: string,
+    // "Spot", "Directional"
+    light_type: string,
     position-x: float,
     position-y: float,
     position-z: float,
-    color-R: int,
-    color-G: int,
-    color-B: int,
+    color-R: float,
+    color-G: float,
+    color-B: float,
     forward-x: float,
     forward-y: float,
     forward-z: float,
 }
 
 export global LightManage {
-    callback add_light(lt: Light);
-    callback del_light(name: string);
+    pure callback add_light(lt: Light);
+    pure callback del_light(lt: Light);
     in-out property <[Light]> lights;
 }

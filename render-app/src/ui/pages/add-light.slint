@@ -30,7 +30,7 @@ export component AddLightPage inherits Rectangle {
 
             type-selector := ComboBox {
                 width: 100%;
-                model: ["Point", "Directional"];
+                model: ["Spot", "Directional"];
                 current-index: 0;
             }
 
@@ -99,17 +99,17 @@ export component AddLightPage inherits Rectangle {
                 padding-right: 10px;
 
                 forwardX := LineEdit {
-                    placeholder-text: "Light Position X";
+                    placeholder-text: "Forward X";
                     width: 100px;
                     text: "0";
                 }
                 forwardY := LineEdit {
-                    placeholder-text: "Light Position Y";
+                    placeholder-text: "Forward Y";
                     width: 100px;
                     text: "0";
                 }
                 forwardZ := LineEdit {
-                    placeholder-text: "Light Position Z";
+                    placeholder-text: "Forward Z";
                     width: 100px;
                     text: "0";
                 }
@@ -123,7 +123,7 @@ export component AddLightPage inherits Rectangle {
                     LightManage.add_light(
                         {
                             name: light-name.text,
-                            type: type-selector.current-value,
+                            light_type: type-selector.current-value,
                             position-x: positionX.text.to-float(),
                             position-y: positionY.text.to-float(),
                             position-z: positionZ.text.to-float(),
@@ -135,6 +135,18 @@ export component AddLightPage inherits Rectangle {
                             forward-z: forwardZ.text.to-float(),
                         }
                     );
+
+                    // 清空表单
+                    light-name.text = "";
+                    positionX.text = "";
+                    positionY.text = "";
+                    positionZ.text = "";
+                    colorR.text = "";
+                    colorG.text = "";
+                    colorB.text = "";
+                    forwardX.text = "";
+                    forwardY.text = "";
+                    forwardZ.text = "";
                 }
             }
         }

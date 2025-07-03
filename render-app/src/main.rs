@@ -8,15 +8,12 @@ mod light;
 
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{SystemTime, UNIX_EPOCH};
-use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
+use slint::{Image, Rgb8Pixel, SharedPixelBuffer, ComponentHandle, ModelRc, VecModel};
+use rfd::FileDialog;
+use std::path::{Path, PathBuf};
 
-// TODO: key
-// https://docs.slint.dev/latest/docs/slint/reference/keyboard-input/focusscope/
-// TODO: mouse
-// https://github.com/slint-ui/slint/issues/2770
-// https://docs.slint.dev/latest/docs/slint/reference/gestures/toucharea/
 use camera::{CameraController, InputEvent};
-use light::LightManager;
+use light::{LightIdentifier, LightManager};
 
 use render_lib::assimp::Color4D;
 use render_lib::nalgebra::clamp;
@@ -80,22 +77,33 @@ fn main() -> Result<(), slint::PlatformError> {
       }
    });
 
-   // let (light_tx, light_rx) = mpsc::channel();
-   // let light_tx = Arc::new(Mutex::new(light_tx));
-   // let light_tx_clone = Arc::clone(&light_tx);
-
    let ui_weak = ui.as_weak();
    let double_buffer_clone = Arc::clone(&buffer);
+
+   let mut scene = Scene::new(width as i32, height as i32);
+   // 用于渲染线程
+   let mut scene_arc = Arc::new(Mutex::new(scene));
+   // 用于 light 管理线程
+   let scene_clone_light = Arc::clone(&scene_arc);
+   // 用于 model 加载线程
+   let scene_clone_model = Arc::clone(&scene_arc);
+
+   // 当前 model 路径主线程记录
+   let mut current_model_path = String::from("./models/diablo3/diablo3_pose.obj");
+
+   // model 回调实现持有
+   let mut old_model = Arc::new(Mutex::new(Model::from_file(
+      &current_model_path,
+      Color4D::new(0.5, 0.5, 0.5, 1.0),
+   )));
+   // 渲染线程持有
+   let model_clone = Arc::clone(&old_model);
+
    // 渲染线程
    std::thread::spawn(move || {
-      let mut scene = Scene::new(width as i32, height as i32);
+      // let mut scene = Scene::new(width as i32, height as i32);
       let floor = Arc::new(Mutex::new(Model::from_file(
          "./models/floor.obj",
-         Color4D::new(0.5, 0.5, 0.5, 1.0),
-      )));
-
-      let model = Arc::new(Mutex::new(Model::from_file(
-         "./models/diablo3/diablo3_pose.obj",
          Color4D::new(0.5, 0.5, 0.5, 1.0),
       )));
 
@@ -121,29 +129,29 @@ fn main() -> Result<(), slint::PlatformError> {
          Some(3),
       ));
 
-      model.lock()
+      model_clone.lock()
          .unwrap()
          .set_texture(Some(diffuse_texture), model::TextureTypes::Diffuse);
-      model.lock()
+      model_clone.lock()
          .unwrap()
          .set_texture(Some(specular_texture), model::TextureTypes::Specular);
-      model.lock()
+      model_clone.lock()
          .unwrap()
          .set_texture(Some(normal_texture), model::TextureTypes::Normal);
-      model.lock()
+      model_clone.lock()
          .unwrap()
          .set_texture(Some(glow_texture), model::TextureTypes::Glow);
 
-      // model.lock().unwrap().set_pos(Vector3f::new(0.0, -2.45, 0.0));
       // 设定模型大小为原来的2.5倍
-      model.lock().unwrap().set_scale(2.5);
+      model_clone.lock().unwrap().set_scale(2.5);
 
       floor.lock().unwrap().set_pos(Vector3f::new(0.0, -2.45, 0.0));
-      scene.add_model(floor.clone());
-      scene.add_model(model.clone());
+      scene_arc.lock().unwrap().add_model(floor.clone());
+      scene_arc.lock().unwrap().add_model(model_clone.clone());
       // 设置远平面距离
-      scene.set_z_far(-100.0);
+      scene_arc.lock().unwrap().set_z_far(-100.0);
 
+      // 初始环境光源
       // 光源 spot
       // let spot_light = Arc::new(Mutex::new(SpotLight::default()));
       // spot_light.lock().unwrap().set_pos(Vector3f::new(10.0, 10.0, 10.0));
@@ -157,18 +165,16 @@ fn main() -> Result<(), slint::PlatformError> {
       directional_light.lock().unwrap().set_pos(Vector3f::new(10.0, 10.0, 10.0));
       directional_light.lock().unwrap().set_intensity(Vector3f::new(1.0, 1.0, 1.0));
       directional_light.lock().unwrap().set_light_dir(
-         (model.lock().unwrap().get_pos() - Vector3f::new(10.0, 10.0, 10.0)).normalize()
+         (model_clone.lock().unwrap().get_pos() - Vector3f::new(10.0, 10.0, 10.0)).normalize()
       );
-      scene.add_light(directional_light);
+      scene_arc.lock().unwrap().add_light(directional_light);
 
       // 初始化摄像机控制器
       let mut camera_controller = CameraController::new();
-      let init_dir = scene.get_view_dir();
+      let init_dir = scene_arc.lock().unwrap().get_view_dir();
       camera_controller.set_dir([init_dir[0], init_dir[1], init_dir[2]]);
 
       loop {
-         // TODO
-         // 处理所有输入事件
          while let Ok(event) = event_rx.try_recv() {
             camera_controller.handle_event(&event);
          }
@@ -181,10 +187,10 @@ fn main() -> Result<(), slint::PlatformError> {
          camera_controller.update();
          let pos_camera = camera_controller.get_pos();
          let dir_camera = camera_controller.get_dir();
-         scene.set_eye_pos(Vector3f::new(pos_camera[0], pos_camera[1], pos_camera[2]));
-         scene.set_view_dir(Vector3f::new(dir_camera[0], dir_camera[1], dir_camera[2]));
-         scene.start_render();
-         db.buffer_convert_fill_back(scene.get_frame_buffer());
+         scene_arc.lock().unwrap().set_eye_pos(Vector3f::new(pos_camera[0], pos_camera[1], pos_camera[2]));
+         scene_arc.lock().unwrap().set_view_dir(Vector3f::new(dir_camera[0], dir_camera[1], dir_camera[2]));
+         scene_arc.lock().unwrap().start_render();
+         db.buffer_convert_fill_back(scene_arc.lock().unwrap().get_frame_buffer());
 
          // 交换缓冲区
          db.swap_buffers();
@@ -200,6 +206,92 @@ fn main() -> Result<(), slint::PlatformError> {
 
          std::thread::sleep(std::time::Duration::from_millis(16));
       }
+   });
+
+   // light 回调通信
+   let (light_tx, light_rx) = mpsc::channel();
+   let light_tx = Arc::new(Mutex::new(light_tx));
+   let light_tx_clone = Arc::clone(&light_tx);
+   let mut light_manager = LightManager::new();
+
+   // 获取全局的 LightManage 对象
+   let light_manage = ui.global::<LightManage>();
+
+   let light_tx_clone = Arc::clone(&light_tx);
+   light_manage.on_add_light(move |identifier| {
+         if let Some(tx) = light_tx_clone.lock().ok() {
+         tx.send((identifier, true)).unwrap();
+      }
+   });
+
+   let light_tx_clone = Arc::clone(&light_tx);
+   light_manage.on_del_light(move |identifier| {
+         if let Some(tx) = light_tx_clone.lock().ok() {
+         tx.send((identifier, false)).unwrap();
+      }
+   });
+
+   // light 管理线程
+   std::thread::spawn(move || {
+      loop {
+         while let Ok((identifier, method)) = light_rx.try_recv() {
+            match method {
+               true => {
+                  // add lights
+                  match identifier.light_type.as_str() {
+                     "Spot" => {
+                        let light = light_manager.add_spot_light(identifier.into());
+                        scene_clone_light.lock().unwrap().add_light(light);
+                     },
+                     "Directional" => {
+                        let light = light_manager.add_directional_light(identifier.into());
+                        scene_clone_light.lock().unwrap().add_light(light);
+                     },
+                     _ => {},
+                  }
+               },
+               false => {
+                  // delete lights
+                  if let Some(light_arc) = light_manager.delete_light(identifier.into()) {
+                     scene_clone_light.lock().unwrap().delete_light(&light_arc);
+                  }
+               },
+            }
+            // 更新slint light列表
+            // let model = VecModel::default();
+            // for light in light_manager.lights.values() {
+            //    // let light = *light.lock().unwrap();
+            //    // model.push(Light {});
+            //    // hashmap 改成存储(Identifier, Arc<Mutex<dyn LightTrait>>)
+            // }
+            // 无法解决
+            // 孤儿规则，没法为 ModelRC 实现sync，不能传递
+            // light_manage.set_lights(ModelRc::new(model));
+            // light_manage.set_lights(model);
+         }
+      }
+   });
+
+   // model 回调通信
+   ui.on_load_model_main_req(move || {
+      // TODO
+      // 使用 rfd 库打开文件选择对话框
+      // let file_path = FileDialog::new(). ...
+      // 记得更新 current_model_path
+      let new_model = Arc::new(Mutex::new(Model::from_file(
+         &current_model_path,
+         Color4D::new(0.5, 0.5, 0.5, 1.0),
+      )));
+      // 设定模型大小为原来的2.5倍
+      new_model.lock().unwrap().set_scale(2.5);
+      // 渲染接口:
+      // 设置texture
+      // new_model.lock().unwrap().set_texture(...)
+      // 删除旧模型
+      // scene_clone_model.lock().unwrap().delete_model(...)
+      // 记得更新 old_model
+      // 加载新模型
+      // scene_clone_model.lock().unwrap().add_model(...);
    });
 
    ui.run()
@@ -244,5 +336,23 @@ impl DoubleBuffer {
             back_buffer[(WIDTH * y + x) as usize].b = ((clamp(src_buffer[idx][2], 0.0, 1.0) * 255.0).round() as u8);
          }
       }
+   }
+}
+
+impl From<Light> for LightIdentifier {
+   fn from(value: Light) -> Self {
+       LightIdentifier {
+           name: value.name,
+           light_type: value.light_type,
+           position_x: value.position_x,
+           position_y: value.position_y,
+           position_z: value.position_z,
+           color_r: value.color_R,
+           color_g: value.color_G,
+           color_b: value.color_B,
+           forward_x: value.forward_x,
+           forward_y: value.forward_y,
+           forward_z: value.forward_z,
+       }
    }
 }

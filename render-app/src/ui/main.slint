@@ -13,6 +13,9 @@ import { Panel } from "widgets/panel.slint";
 import { SideBar } from "widgets/side-bar.slint";
 import { GroupBox, LineEdit, Button } from "std-widgets.slint";
 import { UiState } from "mod/global.slint";
+import { Light, LightManage } from "mod/util.slint";
+
+export { Light, LightManage } from "mod/util.slint";
 
 export component MainWindow inherits AppWindow {
     in-out property page <=> UiState.page;
@@ -37,6 +40,12 @@ export component MainWindow inherits AppWindow {
     callback send-key-pressed(event: KeyEvent);
     callback send-key-released(event: KeyEvent);
     callback send-moved(mouse-x: length, mouse-y: length);
+    callback send-mouse-click();
+
+    in-out property <[Light]> lights <=> LightManage.lights;
+
+    // callback interface
+    callback load_model_main_req();
 
     resize(e) => {
         main-window-resize(e);
@@ -61,36 +70,16 @@ export component MainWindow inherits AppWindow {
                     min-height: 600px;
                 }
                 moved => {
-                    debug("Mouse drag moved(view moved): ", self.mouse-x, ", ", self.mouse-y);
                     send-moved(self.mouse-x, self.mouse-y);
                     key-handler.focus();
                 }
                 clicked => {
+                    send-mouse-click();
                     key-handler.focus();
                 }
             }
 
             key-pressed(event) => {
-                debug("Key pressed: ", event.text);
-                debug("Key modifier: ", event.modifiers);
-                if (event.text == "w") {
-                    debug("W key pressed, camera moving up");
-                }
-                if (event.text == "a") {
-                    debug("A key pressed, camera moving left");
-                }
-                if (event.text == "s") {
-                    debug("S key pressed, camera moving down");
-                }
-                if (event.text == "d") {
-                    debug("D key pressed, camera moving right");
-                }
-                if (event.text == "q") {
-                    debug("Q key pressed, zoom in")
-                }
-                if (event.text == "e") {
-                    debug("E key pressed, zoom out")
-                }
                 send-key-pressed(event);
                 accept
             }
@@ -102,7 +91,11 @@ export component MainWindow inherits AppWindow {
 
         VerticalLayout {
             height: 100%;
-            Panel {}
+            Panel {
+                load_model_req => {
+                    root.load_model_main_req();
+                }
+            }
             SideBar {}
         }
     }
