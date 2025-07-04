@@ -22,6 +22,14 @@ void DirectionalLight::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
 }
 
+float DirectionalLight::get_angular_diameter() const {
+  return angular_diameter;
+}
+
+void DirectionalLight::set_angular_diameter(float angular_diameter) {
+  this->angular_diameter = angular_diameter;
+}
+
 float DirectionalLight::get_view_width() const { return view_width; }
 
 void DirectionalLight::set_view_width(float view_width) {
@@ -318,6 +326,8 @@ float DirectionalLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
   block_depth /= block_num;
   float penumbra = (block_depth - transform_pos.z()) * light_size_div_distance;
   int pcf_radius = std::max(1.0f, roundf(0.25f * penumbra / pixel_radius));
+  // 0.25f * penumbra / pixel_radius == (0.5f * penumbra) / (2.0f *
+  // pixel_radius)
   // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
   // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
   // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变

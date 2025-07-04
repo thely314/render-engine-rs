@@ -102,6 +102,8 @@ public:
   SpotLight();
   Eigen::Vector3f get_light_dir() const;
   void set_light_dir(const Eigen::Vector3f dir);
+  float get_light_radius() const;
+  void set_light_radius(float light_radius);
   float get_fov() const;
   void set_fov(float fov);
   float get_aspect_ratio() const;
@@ -137,8 +139,7 @@ private:
   float aspect_ratio;
   float zNear;
   float zFar;
-  float light_size;
-  float fov_factor;
+  float light_radius;
   float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;
@@ -177,6 +178,8 @@ public:
   DirectionalLight();
   Eigen::Vector3f get_light_dir() const;
   void set_light_dir(const Eigen::Vector3f dir);
+  float get_angular_diameter() const;
+  void set_angular_diameter(float angular_diameter);
   float get_view_width() const;
   void set_view_width(float view_width);
   float get_view_height() const;
@@ -215,7 +218,7 @@ private:
   float angular_diameter;
   // 方向光是用来模拟太阳光的
   // light_dir全程不变的原因是我们认为光源实际位置距离实际场景很远很远，所以可以忽略掉这个变化
-  // 既然如此，light_size和光源到着色点的距离的变化也是极其微小的，我们引入方位角来描述它
+  // 既然如此，light_radius和光源到着色点的距离的变化也是极其微小的，我们引入方位角来描述它
   float pixel_radius;
   int zbuffer_width;
   int zbuffer_height;

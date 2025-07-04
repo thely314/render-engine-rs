@@ -10,9 +10,9 @@
 constexpr int spot_light_sample_num = 64;
 SpotLight::SpotLight()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
-      zNear(-0.1f), zFar(-1000.0f), light_size(1.0f), fov_factor(0.0f),
-      pixel_radius(0.0f), zbuffer_width(8192), zbuffer_height(8192),
-      penumbra_mask_width(0), penumbra_mask_height(0), enable_shadow(true),
+      zNear(-0.1f), zFar(-1000.0f), light_radius(1.0f), pixel_radius(0.0f),
+      zbuffer_width(8192), zbuffer_height(8192), penumbra_mask_width(0),
+      penumbra_mask_height(0), enable_shadow(true),
       enable_pcf_sample_accelerate(true), enable_pcss_sample_accelerate(true),
       enable_penumbra_mask(true), mvp(Eigen::Matrix<float, 4, 4>::Identity()),
       mv(Eigen::Matrix<float, 4, 4>::Identity()) {}
@@ -21,6 +21,12 @@ Eigen::Vector3f SpotLight::get_light_dir() const { return light_dir; }
 
 void SpotLight::set_light_dir(const Eigen::Vector3f dir) {
   light_dir = dir.normalized();
+}
+
+float SpotLight::get_light_radius() const { return light_radius; }
+
+void SpotLight::set_light_radius(float light_radius) {
+  this->light_radius = light_radius;
 }
 
 float SpotLight::get_fov() const { return fov; }
@@ -107,8 +113,8 @@ void SpotLight::look_at(const Scene &scene) {
   this->mvp = mvp;
   this->mv = view * model;
   constexpr float to_radian = M_PI / 360.0f;
-  fov_factor = tan(to_radian * fov);
-  pixel_radius = std::max(1.0f / zbuffer_height, aspect_ratio / zbuffer_width);
+  pixel_radius = -zNear * tan(to_radian * fov) *
+                 std::max(1.0f / zbuffer_height, aspect_ratio / zbuffer_width);
   for (auto obj : scene.objects) {
     obj->clip(mvp, mv);
   }
@@ -177,8 +183,8 @@ float SpotLight::in_shadow_direct(const Eigen::Vector3f point_pos,
   transform_pos = mv * point_pos.homogeneous();
   float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
   const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius *
-                          -transform_pos.z() * fov_factor);
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
+                          transform_pos.z() / zNear * pixel_radius);
   //  这个是比较正确的计算，但是太慢了
   if (transform_pos.z() + bias > z_buffer[get_index(center_x, center_y)]) {
     return 1.0f;
@@ -210,8 +216,8 @@ float SpotLight::in_shadow_pcf(const Eigen::Vector3f point_pos,
   transform_pos = mv * point_pos.homogeneous();
   float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
   const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius *
-                          -transform_pos.z() * fov_factor);
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
+                          transform_pos.z() / zNear * pixel_radius);
   constexpr int pcf_radius = 1;
   if (pcf_radius < 6 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -265,11 +271,11 @@ float SpotLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
   transform_pos = mv * point_pos.homogeneous();
   float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
   const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) * pixel_radius *
-                          -transform_pos.z() * fov_factor);
+      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
+                          transform_pos.z() / zNear * pixel_radius);
   int pcss_radius =
       std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() *
-                            light_size / 64.0f / fov_factor / pixel_radius));
+                            light_radius * -zNear / pixel_radius / 64.0f));
   // 魔数是试出来的
   // 从理想模型上看，它与zNear的大小有关，但是从实际上看又与zNear无关
   // pcss_radius越大，blocker搜索范围也就越大，一个像素的blocker_num不为0的概率也就越高
@@ -309,9 +315,10 @@ float SpotLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
     return 1.0f;
   }
   block_depth /= block_num;
-  float penumbra = (transform_pos.z() - block_depth) / block_depth * light_size;
-  int pcf_radius = std::max(1.0f, roundf(0.5f * penumbra / -transform_pos.z() /
-                                         fov_factor / pixel_radius));
+  float penumbra =
+      (transform_pos.z() - block_depth) / block_depth * light_radius;
+  int pcf_radius = std::max(1.0f, roundf(penumbra * zNear / transform_pos.z() /
+                                         (2.0f * pixel_radius)));
   // pcf_radius决定了阴影的过渡速度，pcf_radius越小，过渡越迅速
   // 所谓过渡速度，是指不同像素之间阴影量的跳变程度
   // 在启用penumbra_mask之后，如果不调小pcf_radius，可能会导致半影面积不够过渡而引起的边缘突变
