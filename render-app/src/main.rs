@@ -327,43 +327,40 @@ fn main() -> Result<(), slint::PlatformError> {
             &current_model_path,
             Color4D::new(0.5, 0.5, 0.5, 1.0),
          )));
-         let model_clone = Arc::clone(&new_model);
          // 设定模型大小为原来的2.5倍
-         model_clone.lock().unwrap().set_scale(2.5);
-         // 渲染接口:
+         new_model.lock().unwrap().set_scale(2.5);
+
          // 设置texture
          if !diffuse_path.is_empty() {
                let texture = Arc::new(Texture::new(&diffuse_path, Some(3)));
-               model_clone.lock()
+               new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Diffuse);
          }
          
          if !specular_path.is_empty() {
                let texture = Arc::new(Texture::new(&specular_path, Some(3)));
-               model_clone.lock()
+               new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Specular);
          }
          
          if !normal_path.is_empty() {
                let texture = Arc::new(Texture::new(&normal_path, Some(3)));
-               model_clone.lock()
+               new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Normal);
          }
          
          if !glow_path.is_empty() {
                let texture = Arc::new(Texture::new(&glow_path, Some(3)));
-               model_clone.lock()
+               new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Glow);
          }
-         // 删除旧模型
+         // 删除旧模型，加载新模型
          scene_clone_model.lock().unwrap().delete_model(&old_model);
-         // 更新 old_model
-         *old_model.lock().unwrap() = model_clone.lock().unwrap().clone();
-         // 加载新模型
+         old_model = Arc::clone(&new_model);
          scene_clone_model.lock().unwrap().add_model(old_model.clone());
       }
    });
