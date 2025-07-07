@@ -1,14 +1,12 @@
 /*!
 A binary program that displays rendering results, with a movable camera.
 */
-#![allow(unused)]
 #[warn(missing_docs)]
 mod camera;
 mod light;
 
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::{SystemTime, UNIX_EPOCH};
-use slint::{Image, Rgb8Pixel, SharedPixelBuffer, ComponentHandle, ModelRc, VecModel};
+use slint::{Image, Rgb8Pixel, SharedPixelBuffer, ComponentHandle};
 use rfd::FileDialog;
 use std::path::{Path, PathBuf};
 
@@ -22,7 +20,6 @@ use render_lib::rasterization::{
    light::LightTrait,
    model::Model,
    scene::Scene,
-   spot_light::SpotLight,
    directional_light::DirectionalLight,
    texture::Texture
 };
@@ -80,15 +77,16 @@ fn main() -> Result<(), slint::PlatformError> {
    let ui_weak = ui.as_weak();
    let double_buffer_clone = Arc::clone(&buffer);
 
-   let mut scene = Scene::new(width as i32, height as i32);
+   let scene = Scene::new(width as i32, height as i32);
    // 用于渲染线程
-   let mut scene_arc = Arc::new(Mutex::new(scene));
+   let scene_arc = Arc::new(Mutex::new(scene));
    // 用于 light 管理线程
    let scene_clone_light = Arc::clone(&scene_arc);
    // 用于 model 加载线程
    let scene_clone_model = Arc::clone(&scene_arc);
 
    // 当前 model 路径主线程记录
+   #[allow(unused_assignments)]
    let mut current_model_path = String::from("./models/diablo3/diablo3_pose.obj");
 
    // model 回调实现持有
@@ -181,9 +179,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
          let mut db = double_buffer_clone.lock().unwrap();
 
-         // 获取后台缓冲区并渲染
-         let back_buffer = db.back_buffer();
-
          camera_controller.update();
          let pos_camera = camera_controller.get_pos();
          let dir_camera = camera_controller.get_dir();
@@ -211,7 +206,6 @@ fn main() -> Result<(), slint::PlatformError> {
    // light 回调通信
    let (light_tx, light_rx) = mpsc::channel();
    let light_tx = Arc::new(Mutex::new(light_tx));
-   let light_tx_clone = Arc::clone(&light_tx);
    let mut light_manager = LightManager::new();
 
    // 获取全局的 LightManage 对象
@@ -281,7 +275,7 @@ fn main() -> Result<(), slint::PlatformError> {
         .pick_file()
       {
          let model_path_str = model_path.to_string_lossy().to_string();
-        
+
          // 获取模型文件所在目录
          let model_dir = if let Some(parent) = Path::new(&model_path_str).parent() {
             parent.to_path_buf()
@@ -289,7 +283,7 @@ fn main() -> Result<(), slint::PlatformError> {
             // 如果无法获取父目录，使用当前目录
             PathBuf::from(".")
          };
-        
+
          // 更新当前模型路径
          current_model_path = model_path_str.clone();
 
@@ -298,7 +292,7 @@ fn main() -> Result<(), slint::PlatformError> {
          let mut specular_path = String::new();
          let mut normal_path = String::new();
          let mut glow_path = String::new();
-        
+
          // 遍历目录中所有内容
          if let Ok(entries) = std::fs::read_dir(&model_dir) {
             for entry in entries {
@@ -321,7 +315,7 @@ fn main() -> Result<(), slint::PlatformError> {
                }
             }
          }
-         
+
          // 创建新模型
          let new_model = Arc::new(Mutex::new(Model::from_file(
             &current_model_path,
@@ -337,21 +331,21 @@ fn main() -> Result<(), slint::PlatformError> {
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Diffuse);
          }
-         
+
          if !specular_path.is_empty() {
                let texture = Arc::new(Texture::new(&specular_path, Some(3)));
                new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Specular);
          }
-         
+
          if !normal_path.is_empty() {
                let texture = Arc::new(Texture::new(&normal_path, Some(3)));
                new_model.lock()
                   .unwrap()
                   .set_texture(Some(texture), model::TextureTypes::Normal);
          }
-         
+
          if !glow_path.is_empty() {
                let texture = Arc::new(Texture::new(&glow_path, Some(3)));
                new_model.lock()
@@ -398,13 +392,13 @@ impl DoubleBuffer {
    }
 
    fn buffer_convert_fill_back(&mut self, src_buffer: &Vec<Vector3f>) -> () {
-      let mut back_buffer = self.back_buffer();
+      let back_buffer = self.back_buffer();
       for y in 0..HEIGHT {
          for x in 0..WIDTH {
             let idx = (WIDTH * (HEIGHT - y - 1) + x) as usize;
-            back_buffer[(WIDTH * y + x) as usize].r = ((clamp(src_buffer[idx][0], 0.0, 1.0) * 255.0).round() as u8);
-            back_buffer[(WIDTH * y + x) as usize].g = ((clamp(src_buffer[idx][1], 0.0, 1.0) * 255.0).round() as u8);
-            back_buffer[(WIDTH * y + x) as usize].b = ((clamp(src_buffer[idx][2], 0.0, 1.0) * 255.0).round() as u8);
+            back_buffer[(WIDTH * y + x) as usize].r = (clamp(src_buffer[idx][0], 0.0, 1.0) * 255.0).round() as u8;
+            back_buffer[(WIDTH * y + x) as usize].g = (clamp(src_buffer[idx][1], 0.0, 1.0) * 255.0).round() as u8;
+            back_buffer[(WIDTH * y + x) as usize].b = (clamp(src_buffer[idx][2], 0.0, 1.0) * 255.0).round() as u8;
          }
       }
    }

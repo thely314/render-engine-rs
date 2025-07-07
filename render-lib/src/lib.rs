@@ -28,7 +28,7 @@ mod test {
     use crate::util::math::*;
     #[test]
     pub fn test_import() {
-        let model_path = "./models/floor.obj"; // 请替换为你的模型文件路径
+        let model_path = "./../models/floor.obj"; // 请替换为你的模型文件路径
                                                // 创建一个新的Importer实例
         let mut importer = assimp::Importer::new();
         importer.triangulate(true);
@@ -63,29 +63,29 @@ mod test {
         let mut scene = Scene::default();
         let model = Arc::new(Mutex::new(Model::from_file(
             // "./models/tallbox.obj",
-            "./models/diablo3/diablo3_pose.obj",
+            "./../models/diablo3/diablo3_pose.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
         )));
         //default_color指定在没有指定顶点颜色时，每个顶点的默认颜色
         let floor = Arc::new(Mutex::new(Model::from_file(
-            "./models/floor.obj",
+            "./../models/floor.obj",
             Color4D::new(0.5, 0.5, 0.5, 1.0),
         )));
         let diffuse_texture = Arc::new(Texture::new(
-            "./models/diablo3/diablo3_pose_diffuse.tga",
+            "./../models/diablo3/diablo3_pose_diffuse.tga",
             Some(3),
         ));
         //desired_channels指定读入纹理的期望通道数，这里期望为rgb三通道图
         let specular_texture = Arc::new(Texture::new(
-            "./models/diablo3/diablo3_pose_spec.tga",
+            "./../models/diablo3/diablo3_pose_spec.tga",
             Some(3),
         ));
         let normal_texture = Arc::new(Texture::new(
-            "./models/diablo3/diablo3_pose_nm_tangent.tga",
+            "./../models/diablo3/diablo3_pose_nm_tangent.tga",
             Some(3),
         ));
         let glow_texture = Arc::new(Texture::new(
-            "./models/diablo3/diablo3_pose_glow.tga",
+            "./../models/diablo3/diablo3_pose_glow.tga",
             Some(3),
         ));
         //Diffuse->漫反射贴图

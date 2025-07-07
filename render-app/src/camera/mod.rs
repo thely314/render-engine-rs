@@ -4,7 +4,6 @@ This module provides a movable camera.
 WASD keys to move the camera.
 mouse to look around.
 */
-use std::sync::{Arc, Mutex};
 use std::f32::consts::PI;
 
 const SPEED: f32 = 1.0;
@@ -149,9 +148,6 @@ impl CameraController {
             self.direction[0] = self.yaw.cos() * self.pitch.cos();
             self.direction[1] = self.pitch.sin();
             self.direction[2] = self.yaw.sin() * self.pitch.cos();
-            // println!("offset: {}, {}", self.mouse_offset.0, self.mouse_offset.1);
-            // println!("Direction: {:?}", self.direction);
-            // println!("rad: raw {}, pitch {}", self.yaw, self.pitch);
             self.is_draging = false;
         }
     }

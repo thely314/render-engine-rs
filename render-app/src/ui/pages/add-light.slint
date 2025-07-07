@@ -64,7 +64,7 @@ export component AddLightPage inherits Rectangle {
             // color
             Text {
                 font-size: Styles.sizes.md*2;
-                text: "color(RGB)";
+                text: "Intensity(RGB, recommended range 0-1)";
             }
             HorizontalLayout {
                 alignment: space-between;
@@ -72,17 +72,17 @@ export component AddLightPage inherits Rectangle {
                 padding-right: 10px;
 
                 colorR := LineEdit {
-                    placeholder-text: "R";
+                    placeholder-text: "R: 0-1";
                     width: 100px;
                     text: "0";
                 }
                 colorG := LineEdit {
-                    placeholder-text: "G";
+                    placeholder-text: "G: 0-1";
                     width: 100px;
                     text: "0";
                 }
                 colorB := LineEdit {
-                    placeholder-text: "B";
+                    placeholder-text: "B: 0-1";
                     width: 100px;
                     text: "0";
                 }
@@ -138,15 +138,15 @@ export component AddLightPage inherits Rectangle {
 
                     // 清空表单
                     light-name.text = "";
-                    positionX.text = "";
-                    positionY.text = "";
-                    positionZ.text = "";
-                    colorR.text = "";
-                    colorG.text = "";
-                    colorB.text = "";
-                    forwardX.text = "";
-                    forwardY.text = "";
-                    forwardZ.text = "";
+                    positionX.text = "0";
+                    positionY.text = "0";
+                    positionZ.text = "0";
+                    colorR.text = "0";
+                    colorG.text = "0";
+                    colorB.text = "0";
+                    forwardX.text = "0";
+                    forwardY.text = "0";
+                    forwardZ.text = "0";
                 }
             }
         }
