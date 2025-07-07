@@ -274,24 +274,95 @@ fn main() -> Result<(), slint::PlatformError> {
 
    // model 回调通信
    ui.on_load_model_main_req(move || {
-      // TODO
       // 使用 rfd 库打开文件选择对话框
-      // let file_path = FileDialog::new(). ...
-      // 记得更新 current_model_path
-      let new_model = Arc::new(Mutex::new(Model::from_file(
-         &current_model_path,
-         Color4D::new(0.5, 0.5, 0.5, 1.0),
-      )));
-      // 设定模型大小为原来的2.5倍
-      new_model.lock().unwrap().set_scale(2.5);
-      // 渲染接口:
-      // 设置texture
-      // new_model.lock().unwrap().set_texture(...)
-      // 删除旧模型
-      // scene_clone_model.lock().unwrap().delete_model(...)
-      // 记得更新 old_model
-      // 加载新模型
-      // scene_clone_model.lock().unwrap().add_model(...);
+      if let Some(model_path) = FileDialog::new()
+        .add_filter("model", &["obj"])
+        .set_directory("./")
+        .pick_file()
+      {
+         let model_path_str = model_path.to_string_lossy().to_string();
+        
+         // 获取模型文件所在目录
+         let model_dir = if let Some(parent) = Path::new(&model_path_str).parent() {
+            parent.to_path_buf()
+         } else {
+            // 如果无法获取父目录，使用当前目录
+            PathBuf::from(".")
+         };
+        
+         // 更新当前模型路径
+         current_model_path = model_path_str.clone();
+
+         // 在目录中查找纹理文件
+         let mut diffuse_path = String::new();
+         let mut specular_path = String::new();
+         let mut normal_path = String::new();
+         let mut glow_path = String::new();
+        
+         // 遍历目录中所有内容
+         if let Ok(entries) = std::fs::read_dir(&model_dir) {
+            for entry in entries {
+               if let Ok(entry) = entry {
+                  let path = entry.path();
+                  if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
+                     // 检查文件名是否包含特定模式
+                     let file_lower = file_name.to_lowercase();
+                     if file_lower.contains("diffuse") && file_lower.ends_with(".tga") {
+                        diffuse_path = path.to_string_lossy().to_string();
+                     } else if file_lower.contains("spec") && file_lower.ends_with(".tga") {
+                        specular_path = path.to_string_lossy().to_string();
+                     } else if (file_lower.contains("normal") || file_lower.contains("tangent")) 
+                              && file_lower.ends_with(".tga") {
+                        normal_path = path.to_string_lossy().to_string();
+                     } else if file_lower.contains("glow") && file_lower.ends_with(".tga") {
+                        glow_path = path.to_string_lossy().to_string();
+                     }
+                  }
+               }
+            }
+         }
+         
+         // 创建新模型
+         let new_model = Arc::new(Mutex::new(Model::from_file(
+            &current_model_path,
+            Color4D::new(0.5, 0.5, 0.5, 1.0),
+         )));
+         // 设定模型大小为原来的2.5倍
+         new_model.lock().unwrap().set_scale(2.5);
+
+         // 设置texture
+         if !diffuse_path.is_empty() {
+               let texture = Arc::new(Texture::new(&diffuse_path, Some(3)));
+               new_model.lock()
+                  .unwrap()
+                  .set_texture(Some(texture), model::TextureTypes::Diffuse);
+         }
+         
+         if !specular_path.is_empty() {
+               let texture = Arc::new(Texture::new(&specular_path, Some(3)));
+               new_model.lock()
+                  .unwrap()
+                  .set_texture(Some(texture), model::TextureTypes::Specular);
+         }
+         
+         if !normal_path.is_empty() {
+               let texture = Arc::new(Texture::new(&normal_path, Some(3)));
+               new_model.lock()
+                  .unwrap()
+                  .set_texture(Some(texture), model::TextureTypes::Normal);
+         }
+         
+         if !glow_path.is_empty() {
+               let texture = Arc::new(Texture::new(&glow_path, Some(3)));
+               new_model.lock()
+                  .unwrap()
+                  .set_texture(Some(texture), model::TextureTypes::Glow);
+         }
+         // 删除旧模型，加载新模型
+         scene_clone_model.lock().unwrap().delete_model(&old_model);
+         old_model = Arc::clone(&new_model);
+         scene_clone_model.lock().unwrap().add_model(old_model.clone());
+      }
    });
 
    ui.run()
