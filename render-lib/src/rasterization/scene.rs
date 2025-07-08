@@ -93,11 +93,8 @@ impl Scene {
     pub fn delete_light(&mut self, target: &Arc<Mutex<dyn LightTrait>>) {
         self.lights.retain(|light| !Arc::ptr_eq(light, target));
     }
-    pub fn get_index(&self, x: i32, y: i32) -> i32 {
+    pub(in crate::rasterization) fn get_index(&self, x: i32, y: i32) -> i32 {
         self.width * y + x
-    }
-    pub fn get_penumbra_mask_index(&self, x: i32, y: i32) -> i32 {
-        self.width * (y / 4) + (x / 4)
     }
     pub fn set_eye_pos(&mut self, eye_pos: Vector3f) {
         self.eye_pos = eye_pos;
@@ -158,6 +155,7 @@ impl Scene {
     ) -> unsafe fn(*mut Scene, *const Vec<*const dyn LightTrait>, i32, i32, i32, i32) {
         self.shader
     }
+    /// 开始渲染
     pub fn start_render(&mut self) {
         self.frame_buffer.resize(
             (self.width * self.height) as usize,
@@ -275,9 +273,6 @@ impl Scene {
             light.generate_penumbra_mask(unsafe { scene_ptr.get() });
             light.box_blur_penumbra_mask(box_radius);
         }
-        // let start = Instant::now();
-        // let duration = start.elapsed();
-        // println!("花费了 {}ms", duration.as_millis());
         let mut handles = Vec::with_capacity(thread_num as usize);
         for tid in 0..thread_num - 1 {
             let handle = thread::spawn(move || unsafe {
@@ -311,6 +306,7 @@ impl Scene {
             handle.join().unwrap();
         }
     }
+    /// 保存渲染结构到图片
     pub fn save_to_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(
             self.frame_buffer.len(),

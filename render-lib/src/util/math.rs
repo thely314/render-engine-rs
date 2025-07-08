@@ -1,15 +1,15 @@
 use std::f32::consts::PI;
 
 pub use nalgebra::clamp;
-use nalgebra::Matrix;
-
+/// 误差量
 pub const EPSILON: f32 = 1e-4;
+
 pub type Vector2f = nalgebra::Vector2<f32>;
 pub type Vector3f = nalgebra::Vector3<f32>;
 pub type Vector4f = nalgebra::Vector4<f32>;
 pub type Matrix3f = nalgebra::Matrix3<f32>;
 pub type Matrix4f = nalgebra::Matrix4<f32>;
-
+///斐波那契圆盘分布数组
 pub const FIBONACCI_SPIRAL_DIRECTION: [[f32; 2]; 64] = [
     [1.000000, 0.000000],
     [-0.737369, 0.675490],
@@ -77,10 +77,14 @@ pub const FIBONACCI_SPIRAL_DIRECTION: [[f32; 2]; 64] = [
     [0.920579, 0.390557],
 ];
 
+///将Vector3f提升到Vector4f，w分量填1.0
 pub fn homogeneous(vec: Vector3f) -> Vector4f {
+    //用它的原因是nalgebra的Vector类型的to_homogeneous()的w分量填的0.0，Point类型填的1.0
+    //但写了一堆代码之后只改一个函数调用显然比底层类型全换一遍方便
+    //而且不知道为什么Point没有dot和cross接口
     Vector4f::new(vec.x, vec.y, vec.z, 1.0)
 }
-
+///生成modeling矩阵，以axis为竖直向上的旋转轴，逆时针旋转angle度（角度制），之后平移movement距离
 pub fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Matrix4f {
     let axis = axis.normalize();
     let angle = angle * PI / 180.0;
@@ -111,6 +115,7 @@ pub fn get_modeling_matrix(axis: Vector3f, angle: f32, movement: Vector3f) -> Ma
         1.0,
     ])
 }
+/// 根据摄像机位置和视线方向生成view矩阵，向上的向量取(0,1,0)，根据摄像机位置做正交处理
 pub fn get_view_matrix(eye_pos: Vector3f, view_dir: Vector3f) -> Matrix4f {
     let view_dir: Vector3f = view_dir.normalize();
     let sky_dir = (Vector3f::y() - Vector3f::y().dot(&view_dir) * view_dir).normalize();
@@ -130,6 +135,7 @@ pub fn get_view_matrix(eye_pos: Vector3f, view_dir: Vector3f) -> Matrix4f {
         .copy_from(&sub_xyz_matrix);
     xyz_matrix * move_matrix
 }
+/// 生成透视投影矩阵，fov为竖直方向的fov，z_near和z_far需传入负值
 pub fn get_projection_matrix(fov: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Matrix4f {
     let tan_val_div = 1.0 / (fov / 360.0 * PI).tan();
     Matrix4f::from_row_slice(&[
@@ -151,6 +157,8 @@ pub fn get_projection_matrix(fov: f32, aspect_ratio: f32, z_near: f32, z_far: f3
         0.0,
     ])
 }
+
+/// 给penumbra_mask做水平方向盒式滤波
 pub(crate) fn blur_penumbra_mask_horizontal(
     input: &Vec<f32>,
     width: i32,
@@ -171,6 +179,8 @@ pub(crate) fn blur_penumbra_mask_horizontal(
     }
     output
 }
+
+/// 给penumbra_mask做竖直方向盒式滤波
 pub(crate) fn blur_penumbra_mask_vertical(
     input: &Vec<f32>,
     width: i32,
@@ -192,6 +202,8 @@ pub(crate) fn blur_penumbra_mask_vertical(
     output
 }
 
+/// 根据给定sample_index生成长度为sample_index*sample_count_inverse，方向为斐波那契圆盘分布数组的第sample_index项的二维向量
+/// clump_exponent用来控制偏好采样中心的点还是边缘的点
 pub fn compute_fibonacci_spiral_disk_sample_uniform(
     sample_index: i32,
     sample_count_inverse: f32,

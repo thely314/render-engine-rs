@@ -44,6 +44,7 @@ impl Default for Model {
 
 impl Model {
     pub const TEXTURE_NUM: usize = 4;
+    /// 从文件中读取模型，default_color指示默认漫反射颜色
     pub fn from_file(path: &str, default_color: Color4D) -> Self {
         let mut importer = assimp::Importer::new();
         importer.triangulate(true);
@@ -72,6 +73,7 @@ impl Model {
         }
         output
     }
+    /// 从文件中加载模型，会删除当前保存的模型，default_color指示默认漫反射颜色
     pub fn load(&mut self, path: &str, default_color: Color4D) {
         let mut importer = assimp::Importer::new();
         importer.triangulate(true);
@@ -261,6 +263,7 @@ impl Model {
             triangle.modeling(modeling_matrix);
         }
     }
+    /// 对三角形做齐次化，但不对z值做齐次化
     pub fn to_NDC(&mut self, width: u32, height: u32) {
         for sub_model in &mut self.sub_models {
             sub_model.lock().unwrap().to_NDC(width, height);

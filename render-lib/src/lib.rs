@@ -29,7 +29,7 @@ mod test {
     #[test]
     pub fn test_import() {
         let model_path = "./../models/floor.obj"; // 请替换为你的模型文件路径
-                                               // 创建一个新的Importer实例
+                                                  // 创建一个新的Importer实例
         let mut importer = assimp::Importer::new();
         importer.triangulate(true);
         importer.generate_normals(|config: &mut assimp::import::structs::GenerateNormals| {
@@ -123,37 +123,37 @@ mod test {
         scene.add_model(floor.clone());
         scene.set_z_far(-100.0);
         //远平面距离，超过这个距离不渲染
-        // let spot_light = Arc::new(Mutex::new(SpotLight::default()));
-        // spot_light
-        //     .lock()
-        //     .unwrap()
-        //     .set_pos(Vector3f::new(10.0, 10.0, 10.0));
-        // spot_light
-        //     .lock()
-        //     .unwrap()
-        //     .set_intensity(Vector3f::new(250.0, 250.0, 250.0));
-        // spot_light
-        //     .lock()
-        //     .unwrap()
-        //     .set_light_dir(-Vector3f::new(10.0, 10.0, 10.0).normalize());
-        // scene.add_light(spot_light);
-        let directional_light = Arc::new(Mutex::new(DirectionalLight::default()));
-        // directional_light.lock().unwrap().set_shadow_status(false);
-        directional_light
+        let spot_light = Arc::new(Mutex::new(SpotLight::default()));
+        spot_light
             .lock()
             .unwrap()
             .set_pos(Vector3f::new(10.0, 10.0, 10.0));
-        //设置光源成像位置
-        directional_light
+        spot_light
             .lock()
             .unwrap()
-            .set_intensity(Vector3f::new(1.0, 1.0, 1.0));
-        //设置光源强度
-        directional_light.lock().unwrap().set_light_dir(
-            (model.lock().unwrap().get_pos() - Vector3f::new(10.0, 10.0, 10.0)).normalize(),
-        );
+            .set_intensity(Vector3f::new(250.0, 250.0, 250.0));
+        spot_light
+            .lock()
+            .unwrap()
+            .set_light_dir(-Vector3f::new(10.0, 10.0, 10.0).normalize());
+        scene.add_light(spot_light);
+        // let directional_light = Arc::new(Mutex::new(DirectionalLight::default()));
+        // // directional_light.lock().unwrap().set_shadow_status(false);
+        // directional_light
+        //     .lock()
+        //     .unwrap()
+        //     .set_pos(Vector3f::new(10.0, 10.0, 10.0));
+        // //设置光源成像位置
+        // directional_light
+        //     .lock()
+        //     .unwrap()
+        //     .set_intensity(Vector3f::new(1.0, 1.0, 1.0));
+        // //设置光源强度
+        // directional_light.lock().unwrap().set_light_dir(
+        //     (model.lock().unwrap().get_pos() - Vector3f::new(10.0, 10.0, 10.0)).normalize(),
+        // );
         //指定光照方向
-        scene.add_light(directional_light);
+        // scene.add_light(directional_light);
         scene.set_eye_pos(Vector3f::new(0.0, 0.0, 7.0));
         //指定摄像机坐标为{0,0,7}
         scene.start_render();

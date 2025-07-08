@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::f32::consts::SQRT_2;
 use std::f32::INFINITY;
 use std::thread;
 
@@ -10,7 +11,8 @@ use nalgebra::{max, min};
 
 use super::unsafe_pack::*;
 const SPOT_LIGHT_MAXIMUM_THREAD_NUM: i32 = 8;
-const SPOT_LIGHT_BIAS_SCALE: f32 = 0.05;
+const SPOT_LIGHT_BIAS_MIN: f32 = 0.05;
+const SPOT_LIGHT_BIAS_SCALE: f32 = 2.5;
 const SPOT_LIGHT_PCF_RADIUS: i32 = 1;
 const SPOT_LIGHT_FIBONACCI_CLUMP_EXPONENT: f32 = 1.0;
 const SPOT_LIGHT_SAMPLE_NUM: i32 = 64;
@@ -27,7 +29,6 @@ pub struct SpotLight {
     penumbra_mask_width: i32,
     penumbra_mask_height: i32,
     light_size: f32,
-    fov_factor: f32,
     pixel_radius: f32,
     enable_shadow: bool,
     enable_pcf_sample_accelerate: bool,
@@ -48,7 +49,6 @@ impl Default for SpotLight {
             z_near: -0.1,
             z_far: -1000.0,
             light_size: 1.0,
-            fov_factor: 0.0,
             pixel_radius: 0.0,
             z_buffer_width: 2048,
             z_buffer_height: 2048,
@@ -100,11 +100,12 @@ impl LightTrait for SpotLight {
             get_projection_matrix(self.fov, self.aspect_ratio, self.z_near, self.z_far);
         self.mv = view * modeling;
         self.mvp = projection * self.mv;
-        self.fov_factor = f32::tan(self.fov / 360.0 * PI);
-        self.pixel_radius = f32::max(
-            1.0 / self.z_buffer_height as f32,
-            self.aspect_ratio / self.z_buffer_width as f32,
-        );
+        self.pixel_radius = -self.z_near
+            * f32::tan(self.fov / 360.0 * PI)
+            * f32::max(
+                1.0 / self.z_buffer_height as f32,
+                self.aspect_ratio / self.z_buffer_width as f32,
+            );
         for model in unsafe { &*models } {
             let model_ref = unsafe { model.as_mut() }.unwrap();
             model_ref.clip(&self.mvp, &self.mv);
@@ -295,27 +296,32 @@ impl SpotLight {
     pub fn set_shadow_status(&mut self, status: bool) {
         self.enable_shadow = status;
     }
+    /// 获取PCF采样加速的状态
 
     pub fn get_pcf_sample_accelerate_status(&self) -> bool {
         self.enable_pcf_sample_accelerate
     }
-
+    /// 指示是否为PCF启用采样加速
+    /// 如果设为true会为PCF启用斐波那契圆盘分布采样来加速PCF
+    /// 设为false会与半径内所有shadow map记录的深度进行比较
     pub fn set_pcf_sample_accelerate_status(&mut self, status: bool) {
         self.enable_pcf_sample_accelerate = status;
     }
-
+    /// 获取PCSS采样加速的状态
     pub fn get_pcss_sample_accelerate_status(&self) -> bool {
         self.enable_pcss_sample_accelerate
     }
-
+    /// 指示是否为PCSS启用采样加速
+    /// 如果设为true会为PCSS启用斐波那契圆盘分布采样来加速PCSS
+    /// 设为false会与半径内所有shadow map记录的深度进行比较
     pub fn set_pcss_sample_accelerate_status(&mut self, status: bool) {
         self.enable_pcss_sample_accelerate = status;
     }
-
+    /// 获取penumbra_mask加速的状态
     pub fn get_penumbra_mask_status(&self) -> bool {
         self.enable_penumbra_mask
     }
-
+    /// 指示是否生成penumbra_mask来加速阴影计算
     pub fn set_penumbra_mask_status(&mut self, status: bool) {
         self.enable_penumbra_mask = status;
     }
@@ -351,13 +357,14 @@ impl SpotLight {
         );
         let transform_pos = self.mv * homogeneous(point);
         let bias = f32::max(
-            0.2,
-            1.0 * (1.0 - (self.get_pos() - point).normalize().dot(&normal)),
-        ) * SPOT_LIGHT_BIAS_SCALE
-            * self.fov_factor
-            * -transform_pos.z
-            * 512.0
-            * self.pixel_radius;
+            SPOT_LIGHT_BIAS_MIN,
+            SPOT_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * transform_pos.z
+                / self.z_near
+                * SQRT_2
+                * self.pixel_radius,
+        );
         if transform_pos.z + bias > self.z_buffer[self.get_index(x_to_int, y_to_int) as usize] {
             return 1.0;
         }
@@ -389,13 +396,14 @@ impl SpotLight {
         );
         let transform_pos = self.mv * homogeneous(point);
         let bias = f32::max(
-            0.2,
-            1.0 * (1.0 - (self.get_pos() - point).normalize().dot(&normal)),
-        ) * SPOT_LIGHT_BIAS_SCALE
-            * self.fov_factor
-            * -transform_pos.z
-            * 512.0
-            * self.pixel_radius;
+            SPOT_LIGHT_BIAS_MIN,
+            SPOT_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * transform_pos.z
+                / self.z_near
+                * SQRT_2
+                * self.pixel_radius,
+        );
         let mut unshadow_num = 0;
         let pcf_radius = SPOT_LIGHT_PCF_RADIUS;
         if self.enable_pcf_sample_accelerate {
@@ -459,20 +467,20 @@ impl SpotLight {
         );
         let transform_pos = self.mv * homogeneous(point);
         let bias = f32::max(
-            0.2,
-            1.0 * (1.0 - (self.get_pos() - point).normalize().dot(&normal)),
-        ) * SPOT_LIGHT_BIAS_SCALE
-            * self.fov_factor
-            * -transform_pos.z
-            * 512.0
-            * self.pixel_radius;
+            SPOT_LIGHT_BIAS_MIN,
+            SPOT_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * transform_pos.z
+                / self.z_near
+                * SQRT_2
+                * self.pixel_radius,
+        );
         //这个是试出来的
         let pcss_radius = f32::max(
             1.0,
-            ((transform_pos.z + 1.0) / transform_pos.z * 0.5 * self.light_size
-                / self.fov_factor
+            ((transform_pos.z + 1.0) / transform_pos.z * self.light_size * -self.z_near
                 / self.pixel_radius
-                / 32.0)
+                / 64.0)
                 .round(),
         ) as i32;
         //这个也是试出来的
@@ -518,9 +526,10 @@ impl SpotLight {
         }
         block_depth /= block_num as f32;
         let penumbra = (transform_pos.z - block_depth) / block_depth * self.light_size;
+
         let pcf_radius = f32::max(
             1.0,
-            (0.5 * penumbra / -transform_pos.z / self.fov_factor / self.pixel_radius).round(),
+            (0.5 * penumbra * self.z_near / transform_pos.z / self.pixel_radius).round(),
         ) as i32;
         //这个是算出来的(除去为了适应不同的宽高比而取的self.pixel_radius)
         let mut unshadow_num = 0;

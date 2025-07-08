@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::f32::consts::SQRT_2;
 use std::f32::INFINITY;
 use std::thread;
 
@@ -10,7 +11,8 @@ use nalgebra::{max, min};
 
 use super::unsafe_pack::*;
 const DIRECTIONAL_LIGHT_MAXIMUM_THREAD_NUM: i32 = 8;
-const DIRECTIONAL_LIGHT_BIAS_SCALE: f32 = 10.0;
+const DIRECTIONAL_LIGHT_BIAS_MIN: f32 = 0.05;
+const DIRECTIONAL_LIGHT_BIAS_SCALE: f32 = 2.5;
 const DIRECTIONAL_LIGHT_PCF_RADIUS: i32 = 1;
 const DIRECTIONAL_LIGHT_FIBONACCI_CLUMP_EXPONENT: f32 = 1.0;
 const DIRECTIONAL_LIGHT_SAMPLE_NUM: i32 = 64;
@@ -319,27 +321,31 @@ impl DirectionalLight {
     pub fn set_shadow_status(&mut self, status: bool) {
         self.enable_shadow = status;
     }
-
+    /// 获取PCF采样加速的状态
     pub fn get_pcf_sample_accelerate_status(&self) -> bool {
         self.enable_pcf_sample_accelerate
     }
-
+    /// 指示是否为PCF启用采样加速
+    /// 如果设为true会为PCF启用斐波那契圆盘分布采样来加速PCF
+    /// 设为false会与半径内所有shadow map记录的深度进行比较
     pub fn set_pcf_sample_accelerate_status(&mut self, status: bool) {
         self.enable_pcf_sample_accelerate = status;
     }
-
+    /// 获取PCSS采样加速的状态
     pub fn get_pcss_sample_accelerate_status(&self) -> bool {
         self.enable_pcss_sample_accelerate
     }
-
+    /// 指示是否为PCSS启用采样加速
+    /// 如果设为true会为PCSS启用斐波那契圆盘分布采样来加速PCSS
+    /// 设为false会与半径内所有shadow map记录的深度进行比较
     pub fn set_pcss_sample_accelerate_status(&mut self, status: bool) {
         self.enable_pcss_sample_accelerate = status;
     }
-
+    /// 获取penumbra_mask加速的状态
     pub fn get_penumbra_mask_status(&self) -> bool {
         self.enable_penumbra_mask
     }
-
+    /// 指示是否生成penumbra_mask来加速阴影计算
     pub fn set_penumbra_mask_status(&mut self, status: bool) {
         self.enable_penumbra_mask = status;
     }
@@ -374,9 +380,13 @@ impl DirectionalLight {
             self.z_buffer_height - 1,
         );
         let transform_pos = self.mv * homogeneous(point);
-        let bias = DIRECTIONAL_LIGHT_BIAS_SCALE
-            * f32::max(0.2, 1.0 - self.light_dir.dot(&-normal))
-            * self.pixel_radius;
+        let bias = f32::max(
+            DIRECTIONAL_LIGHT_BIAS_MIN,
+            DIRECTIONAL_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * SQRT_2
+                * self.pixel_radius,
+        );
         if transform_pos.z + bias > self.z_buffer[self.get_index(x_to_int, y_to_int) as usize] {
             return 1.0;
         }
@@ -407,9 +417,13 @@ impl DirectionalLight {
             self.z_buffer_height - 1,
         );
         let transform_pos = self.mv * homogeneous(point);
-        let bias = DIRECTIONAL_LIGHT_BIAS_SCALE
-            * f32::max(0.2, 1.0 - self.light_dir.dot(&-normal))
-            * self.pixel_radius;
+        let bias = f32::max(
+            DIRECTIONAL_LIGHT_BIAS_MIN,
+            DIRECTIONAL_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * SQRT_2
+                * self.pixel_radius,
+        );
         let mut unshadow_num = 0;
         let pcf_radius = DIRECTIONAL_LIGHT_PCF_RADIUS;
         if self.enable_pcf_sample_accelerate {
@@ -472,9 +486,13 @@ impl DirectionalLight {
             self.z_buffer_height - 1,
         );
         let transform_pos = self.mv * homogeneous(point);
-        let bias = DIRECTIONAL_LIGHT_BIAS_SCALE
-            * f32::max(0.2, 1.0 - self.light_dir.dot(&-normal))
-            * self.pixel_radius;
+        let bias = f32::max(
+            DIRECTIONAL_LIGHT_BIAS_MIN,
+            DIRECTIONAL_LIGHT_BIAS_SCALE
+                * f32::max(1.0, 1.0 - self.light_dir.dot(&normal))
+                * SQRT_2
+                * self.pixel_radius,
+        );
         //这个是试出来的
         let light_size_div_distance = 2.0 * f32::tan(self.angular_diameter / 360.0 * PI);
         let pcss_radius = f32::max(1.0, 2.5 * light_size_div_distance / self.pixel_radius) as i32;

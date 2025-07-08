@@ -471,6 +471,7 @@ impl TriangleRasterization {
                     Vector2f::new(x as f32 + 0.5, y as f32 + 0.5),
                 );
                 if is_inside_triangle(alpha, beta, gamma) {
+                    //指示是否进行透视矫正
                     if IS_PROJECTION {
                         alpha /= -self.verteies[0].transform_pos.w;
                         beta /= -self.verteies[1].transform_pos.w;
@@ -497,6 +498,8 @@ impl TriangleRasterization {
             }
         }
     }
+    //根据某个平面对顶点集做裁剪，只留下对应分量在[w,-w]内的顶点
+    //注意w是负数
     fn clip_verteies<const N: usize, const IS_LESS: bool>(
         verteies: &Vec<VertexRasterization>,
         output: &mut Vec<VertexRasterization>,
