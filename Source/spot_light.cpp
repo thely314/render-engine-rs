@@ -8,6 +8,8 @@
 #include <vector>
 
 constexpr int spot_light_sample_num = 64;
+constexpr float spot_light_bias_scale = 2.5f;
+constexpr float spot_light_bias_min = 0.05f;
 SpotLight::SpotLight()
     : light(), light_dir(0.0f, 0.0f, -1.0f), fov(90.0f), aspect_ratio(1.0f),
       zNear(-0.1f), zFar(-1000.0f), light_radius(1.0f), pixel_radius(0.0f),
@@ -181,11 +183,10 @@ float SpotLight::in_shadow_direct(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
-  const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
-                          transform_pos.z() / zNear * pixel_radius);
-  //  这个是比较正确的计算，但是太慢了
+  const float bias = std::max(
+      spot_light_bias_min,
+      spot_light_bias_scale * std::max(1.0f, 1.0f - light_dir.dot(normal)) *
+          sqrtf(2) * transform_pos.z() / zNear * pixel_radius);
   if (transform_pos.z() + bias > z_buffer[get_index(center_x, center_y)]) {
     return 1.0f;
   }
@@ -214,10 +215,10 @@ float SpotLight::in_shadow_pcf(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
-  const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
-                          transform_pos.z() / zNear * pixel_radius);
+  const float bias = std::max(
+      spot_light_bias_min,
+      spot_light_bias_scale * std::max(1.0f, 1.0f - light_dir.dot(normal)) *
+          sqrtf(2) * transform_pos.z() / zNear * pixel_radius);
   constexpr int pcf_radius = 1;
   if (pcf_radius < 6 || !enable_pcf_sample_accelerate) {
     for (int y = -pcf_radius; y <= pcf_radius; ++y) {
@@ -269,10 +270,10 @@ float SpotLight::in_shadow_pcss(const Eigen::Vector3f point_pos,
                                 0.5f * zbuffer_height),
                             0, zbuffer_height - 1);
   transform_pos = mv * point_pos.homogeneous();
-  float cosval = light_dir.dot(-normal) * light_dir.dot(-normal);
-  const float bias =
-      std::max(0.05f, sqrtf((1 - cosval) / (cosval)) * sqrtf(2) *
-                          transform_pos.z() / zNear * pixel_radius);
+  const float bias = std::max(
+      spot_light_bias_min,
+      spot_light_bias_scale * std::max(1.0f, 1.0f - light_dir.dot(normal)) *
+          sqrtf(2) * transform_pos.z() / zNear * pixel_radius);
   int pcss_radius =
       std::max(1.0f, roundf((transform_pos.z() + 1) / transform_pos.z() *
                             light_radius * -zNear / pixel_radius / 64.0f));

@@ -4,7 +4,7 @@
 
 class Texture {
 public:
-  Texture(const char *filename, int desire_channels = 3);
+  Texture(const char *filename, int desire_channels = 0);
   int get_index(int x, int y);
   Eigen::Vector3f get_color(float u, float v);
   ~Texture();
